@@ -30,6 +30,9 @@ static void busy_wait (int64_t loops);
 static void real_time_sleep (int64_t num, int32_t denom);
 static void real_time_delay (int64_t num, int32_t denom);
 
+
+static struct list sleeping_threads;           /* List element for sleeping threads. */
+
 /* Sets up the timer to interrupt TIMER_FREQ times per second,
    and registers the corresponding interrupt. */
 void
@@ -37,6 +40,7 @@ timer_init (void)
 {
   pit_configure_channel (0, 2, TIMER_FREQ);
   intr_register_ext (0x20, timer_interrupt, "8254 Timer");
+  list_init (&sleeping_threads);
 }
 
 /* Calibrates loops_per_tick, used to implement brief delays. */
@@ -94,11 +98,24 @@ timer_sleep (int64_t sleep_ticks)
   enum intr_level old_level = intr_disable();
 
   struct thread* cur_t = thread_current();
-  cur_t->sleep_time = sleep_ticks;
+  cur_t->wake_up_time = ticks + sleep_ticks;
+  list_insert_ordered(&sleeping_threads, &cur_t->sleeping_elem, thread_wake_up_time_comp, NULL);
+
   thread_block();
-  
+
+
   intr_set_level(old_level);
 }
+
+/* Comparator used to compare threads based on their sleep time. */
+bool
+thread_wake_up_time_comp(const struct list_elem *t1, const struct list_elem *t2, void *aux)
+{
+  struct thread *t1_thread = list_entry (t1, struct thread, sleeping_elem);
+  struct thread *t2_thread = list_entry (t2, struct thread, sleeping_elem);
+  return t1_thread->wake_up_time <= t2_thread->wake_up_time;
+}
+
 /* Sleeps for approximately MS milliseconds.  Interrupts must be
    turned on. */
 void
@@ -177,17 +194,23 @@ timer_interrupt (struct intr_frame *args UNUSED)
   ticks++;
   thread_tick();
   
-  thread_foreach(wake_up_thread, 0);
+  wake_up_threads(ticks);
   intr_set_level(old_level);
 }
 
-void wake_up_thread(struct thread *t, void *aux) {
-  if(t->status == THREAD_BLOCKED && t->sleep_time > 0){
-    t->sleep_time--;
-    if(t->sleep_time == 0) {
+void wake_up_threads(int64_t current_ticks) {
+  struct list_elem *e;
+  for (e = list_begin (&sleeping_threads); e != list_end (&sleeping_threads); )
+    {
+      struct thread *t = list_entry (e, struct thread, sleeping_elem);
+      if(t->wake_up_time > current_ticks)
+      {
+        break;
+      }
       thread_unblock(t);
+      e = list_next (e);
+      list_pop_front(&sleeping_threads);
     }
-  }
 }
 
 /* Returns true if LOOPS iterations waits for more than one timer
