@@ -61,6 +61,8 @@ static unsigned thread_ticks; /* # of timer ticks since last yield. */
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 bool thread_mlfqs;
+/* system load average */
+fixed_point load_average;
 
 static void kernel_thread(thread_func *, void *aux);
 
@@ -125,15 +127,15 @@ void thread_start(void) {
 void thread_tick(void) {
   struct thread *t = thread_current();
 
-  /* Update statistics. */
-  if (t == idle_thread)
-    idle_ticks++;
+    /* Update statistics. */
+    if (t == idle_thread)
+        idle_ticks++;
 #ifdef USERPROG
     else if (t->pagedir != NULL)
       user_ticks++;
 #endif
-  else
-    kernel_ticks++;
+    else
+        kernel_ticks++;
 
 
   if (thread_mlfqs) {
@@ -361,7 +363,15 @@ struct thread *thread_current(void) {
   ASSERT(is_thread(t));
   ASSERT(t->status == THREAD_RUNNING);
 
-  return t;
+    /* Make sure T is really a thread.
+       If either of these assertions fire, then your thread may
+       have overflowed its stack.  Each thread has less than 4 kB
+       of stack, so a few big automatic arrays or moderate
+       recursion can cause stack overflow. */
+    ASSERT (is_thread (t));
+    ASSERT (t->status == THREAD_RUNNING);
+
+    return t;
 }
 
 /* Returns the running thread's tid. */
@@ -539,8 +549,8 @@ static void *alloc_frame(struct thread *t, size_t size) {
   ASSERT(is_thread(t));
   ASSERT(size % sizeof(uint32_t) == 0);
 
-  t->stack -= size;
-  return t->stack;
+    t->stack -= size;
+    return t->stack;
 }
 
 /* Chooses and returns the next thread to be scheduled.  Should
@@ -579,11 +589,11 @@ void thread_schedule_tail(struct thread *prev) {
 
   ASSERT(intr_get_level() == INTR_OFF);
 
-  /* Mark us as running. */
-  cur->status = THREAD_RUNNING;
+    /* Mark us as running. */
+    cur->status = THREAD_RUNNING;
 
-  /* Start new time slice. */
-  thread_ticks = 0;
+    /* Start new time slice. */
+    thread_ticks = 0;
 
 #ifdef USERPROG
   /* Activate the new address space. */
@@ -631,7 +641,7 @@ static tid_t allocate_tid(void) {
   tid = next_tid++;
   lock_release(&tid_lock);
 
-  return tid;
+    return tid;
 }
 
 /* Offset of `stack' member within `struct thread'.

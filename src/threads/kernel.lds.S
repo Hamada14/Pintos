@@ -13,8 +13,8 @@ SECTIONS
 
   /* Kernel starts with code, followed by read-only data and writable data. */
   .text : { *(.start) *(.text) } = 0x90
-  .rodata : { *(.rodata) *(.rodata.*) 
-	      . = ALIGN(0x1000); 
+  .rodata : { *(.rodata) *(.rodata.*)
+	      . = ALIGN(0x1000);
 	      _end_kernel_text = .; }
   .data : { *(.data)  *(.data.*)
 	    _signature = .; LONG(0xaa55aa55) }

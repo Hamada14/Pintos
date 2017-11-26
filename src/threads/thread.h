@@ -1,6 +1,6 @@
 #ifndef THREADS_THREAD_H
 #define THREADS_THREAD_H
-
+#include "fixedPoint.h"
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
@@ -121,6 +121,8 @@ struct thread {
    If true, use multi-level feedback queue scheduler.
    Controlled by kernel command-line option "-o mlfqs". */
 extern bool thread_mlfqs;
+/* system load average*/
+extern fixed_point load_average;
 
 void thread_init(void);
 void thread_start(void);
@@ -164,4 +166,5 @@ void thread_set_nice(int);
 int thread_get_recent_cpu(void);
 int thread_get_load_avg(void);
 
+void update_threads(void);
 #endif /* threads/thread.h */
