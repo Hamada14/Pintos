@@ -4,6 +4,9 @@
 #include <list.h>
 #include <stdbool.h>
 
+#define max(n1, n2) ((n1) > (n2) ? (n1) : (n2))
+#define min(n1, n2) ((n1) < (n2) ? (n1) : (n2))
+
 /* A counting semaphore. */
 struct semaphore {
   unsigned value;      /* Current value. */
@@ -24,7 +27,7 @@ void sema_up(struct semaphore *);
 void sema_self_test(void);
 
 void execute_priority_donation(struct thread *t, struct semaphore *sema);
-bool thread_priority_comp_block(const struct list_elem *t1,const struct list_elem *t2, void *aux);
+bool thread_priority_comp_block(const struct list_elem *,const struct list_elem *, void * UNUSED);
 /* Lock. */
 struct lock {
   struct thread *holder;      /* Thread holding lock (for debugging). */

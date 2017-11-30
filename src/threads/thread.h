@@ -4,6 +4,7 @@
 #include <debug.h>
 #include <list.h>
 #include <stdint.h>
+#include "fixed_point.h"
 
 /* States in a thread's life cycle. */
 enum thread_status {
@@ -22,6 +23,9 @@ typedef int tid_t;
 #define PRI_MIN 0      /* Lowest priority. */
 #define PRI_DEFAULT 31 /* Default priority. */
 #define PRI_MAX 63     /* Highest priority. */
+
+#define max(n1, n2) ((n1) > (n2) ? (n1) : (n2))
+#define min(n1, n2) ((n1) < (n2) ? (n1) : (n2))
 
 /* A kernel thread or user process.
 
@@ -101,6 +105,8 @@ struct thread {
   struct list_elem sleeping_elem; /* List element for sleeping threads list */
   struct list_elem waiting_elem;
 
+  int nice;
+  fixed_point recent_cpu;
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */
@@ -126,7 +132,7 @@ typedef void thread_func(void *aux);
 tid_t thread_create(const char *name, int priority, thread_func *, void *);
 
 bool thread_priority_comp(const struct list_elem *, const struct list_elem *,
-                          void *);
+                          void * UNUSED);
 void thread_block(void);
 bool thread_unblock(struct thread *);
 
@@ -138,7 +144,7 @@ const char *thread_name(void);
 
 void thread_reset_priority(struct thread *t);
 
-bool locks_priority_comp(const struct list_elem *t1, const struct list_elem *t2, void *aux);
+bool locks_priority_comp(const struct list_elem *, const struct list_elem *, void * UNUSED);
 void thread_exit(void) NO_RETURN;
 void thread_yield(void);
 

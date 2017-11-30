@@ -88,7 +88,7 @@ void execute_priority_donation(struct thread *t, struct semaphore *sema) {
   for(int i = 0; i < 8 && temp_sema != NULL; i++) {
     struct list_elem *max_elem = list_max(&temp_sema->waiters, thread_priority_comp_block, NULL);
     struct thread* max_thread = list_entry(max_elem, struct thread, waiting_elem);
-    int mx_pr = temp_sema->holder->priority > max_thread->priority ? temp_sema->holder->priority : max_thread->priority;
+    int mx_pr = max(temp_sema->holder->priority, max_thread->priority);
     temp_sema->priority = max_thread->priority;
 
     temp_t1 = temp_sema->holder;
@@ -133,7 +133,7 @@ void sema_up(struct semaphore *sema) {
 
   bool should_yield = false;
   old_level = intr_disable();
-  if(sema->is_lock) {
+  if (sema->is_lock) {
     list_remove(&sema->thread_key);
     thread_reset_priority(thread_current());
   }
@@ -141,8 +141,7 @@ void sema_up(struct semaphore *sema) {
   if (!list_empty(&sema->waiters)) {
     struct list_elem *max_elem = list_max(&sema->waiters, thread_priority_comp_block, NULL);
     list_remove(max_elem);
-    should_yield = thread_unblock(
-        list_entry(max_elem, struct thread, waiting_elem));
+    should_yield = thread_unblock(list_entry(max_elem, struct thread, waiting_elem));
   }
   sema->value++;
   intr_set_level(old_level);
@@ -151,7 +150,7 @@ void sema_up(struct semaphore *sema) {
 }
 
 bool thread_priority_comp_block(const struct list_elem *t1,
-                          const struct list_elem *t2, void *aux) {
+                          const struct list_elem *t2, void *aux UNUSED) {
   struct thread *t1_thread = list_entry(t1, struct thread, waiting_elem);
   struct thread *t2_thread = list_entry(t2, struct thread, waiting_elem);
   return t2_thread->priority > t1_thread->priority;
