@@ -67,13 +67,13 @@ void sema_down(struct semaphore *sema) {
   struct thread *t = thread_current();
   while (sema->value == 0) {
     list_push_back(&sema->waiters, &t->waiting_elem);
-    if(sema->is_lock) {
+    if(sema->is_lock && !thread_mlfqs) {
       t->waiting_lock = sema;
       execute_priority_donation(t, sema);
     }
     thread_block();
   }
-  if(sema->is_lock) {
+  if(sema->is_lock && !thread_mlfqs) {
     list_push_back(&t->acquired_locks, &sema->thread_key);
     t->waiting_lock =  NULL;
   }
@@ -133,7 +133,7 @@ void sema_up(struct semaphore *sema) {
 
   bool should_yield = false;
   old_level = intr_disable();
-  if (sema->is_lock) {
+  if (sema->is_lock && !thread_mlfqs) {
     list_remove(&sema->thread_key);
     thread_reset_priority(thread_current());
   }

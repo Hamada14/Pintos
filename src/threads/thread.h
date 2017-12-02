@@ -133,6 +133,10 @@ tid_t thread_create(const char *name, int priority, thread_func *, void *);
 
 bool thread_priority_comp(const struct list_elem *, const struct list_elem *,
                           void * UNUSED);
+
+
+bool thread_priority_comp_max(const struct list_elem *, const struct list_elem *, void * UNUSED);
+
 void thread_block(void);
 bool thread_unblock(struct thread *);
 

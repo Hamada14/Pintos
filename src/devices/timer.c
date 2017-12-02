@@ -157,9 +157,8 @@ void timer_print_stats (void) {
 static void timer_interrupt (struct intr_frame *args UNUSED) {
   enum intr_level old_level = intr_disable();
   ticks++;
-  thread_tick();
-
   wake_up_threads(ticks);
+  thread_tick();
   intr_set_level(old_level);
 }
 

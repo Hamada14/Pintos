@@ -135,12 +135,13 @@ void thread_tick(void) {
   else
     kernel_ticks++;
 
+
+  if (thread_mlfqs) {
+    update_BSD_parameters();
+  }
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE) {
     intr_yield_on_return();
-  }
-  if (thread_mlfqs) {
-    update_BSD_parameters();
   }
 }
 
@@ -151,7 +152,6 @@ static void update_BSD_parameters(void) {
     }
 
     if (timer_ticks() % TIMER_FREQ == 0) {
-        thread_foreach(update_recent_cpu, NULL);
 
         //load_avg = (59/60)*load_avg + (1/60)*ready_threads.
         int ready_threads = list_size(&ready_list);
@@ -162,23 +162,28 @@ static void update_BSD_parameters(void) {
         fixed_point f_2 = fixed_point_divide(fixed_pint_convert_int(1), fixed_pint_convert_int(60));
         load_avg = fixed_point_add(fixed_point_multiply(f_1, load_avg),
                                    fixed_point_multiply_integer(f_2, ready_threads));
+        thread_foreach(update_recent_cpu, NULL);
+        thread_foreach(update_thread_priority, NULL);
+
     }
 
     //Update priorities
     if (timer_ticks() % FOURTH_CLOCK_TICK == 0) {
-        thread_foreach(update_thread_priority, NULL);
+        update_thread_priority(thread_current(), NULL);
     }
+
 }
 
 static void update_thread_priority(struct thread *t, void *aux UNUSED) {
+  if(t != idle_thread) {
     //priority = PRI_MAX - (recent_cpu / 4) - (nice * 2).
     fixed_point f_pri_max = fixed_pint_convert_int(PRI_MAX);
     fixed_point new_priority = fixed_point_subtract(f_pri_max, fixed_point_divide_integer(t->recent_cpu, 4));
-    new_priority = fixed_point_subtract(new_priority, fixed_point_divide_integer(t->nice, 2));
-    t->priority = fixed_point_floor(new_priority);
-    t->real_priority = fixed_point_floor(new_priority);
+    new_priority = fixed_point_subtract_integer(new_priority, t->nice * 2);
+    t->priority = fixed_point_round(new_priority);
     t->priority = min(t->priority, PRI_MAX);
     t->priority = max(t->priority, PRI_MIN);
+  }
 }
 
 static void update_recent_cpu(struct thread *t, void *aux UNUSED) {
@@ -231,7 +236,8 @@ tid_t thread_create(const char *name, int priority, thread_func *function,
     init_thread(t, name, priority);
     /*Inherit nice value if mlfqs*/
     if (thread_mlfqs) {
-        t->nice = thread_current()->nice;
+        t->nice = 0;
+        t->recent_cpu = 0;
     }
 
     tid = t->tid = allocate_tid();
@@ -280,6 +286,12 @@ bool thread_priority_comp(const struct list_elem *t1,
   return t1_thread->priority > t2_thread->priority;
 }
 
+bool thread_priority_comp_max(const struct list_elem *t1,
+                          const struct list_elem *t2, void *aux UNUSED) {
+  struct thread *t1_thread = list_entry(t1, struct thread, elem);
+  struct thread *t2_thread = list_entry(t2, struct thread, elem);
+  return t2_thread->priority > t1_thread->priority;
+}
 /* Puts the current thread to sleep.  It will not be scheduled
    again until awoken by thread_unblock().
 
@@ -309,7 +321,7 @@ bool thread_unblock(struct thread *t) {
 
   old_level = intr_disable();
   ASSERT(t->status == THREAD_BLOCKED);
-  list_insert_ordered(&ready_list, &t->elem, thread_priority_comp, NULL);
+  list_push_back(&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level(old_level);
   return t->priority > thread_current()->priority;
@@ -384,7 +396,7 @@ void thread_yield(void) {
 
   old_level = intr_disable();
   if (cur != idle_thread)
-      list_insert_ordered(&ready_list, &cur->elem, thread_priority_comp, NULL);
+      list_push_back(&ready_list, &cur->elem);
   cur->status = THREAD_READY;
   schedule();
   intr_set_level(old_level);
@@ -417,10 +429,12 @@ int thread_get_priority(void) { return thread_current()->priority; }
 /* Sets the current thread's nice value to NICE. */
 void thread_set_nice(int nice) {
     ASSERT(nice >= -20 && nice <= 20);
+    enum intr_level old_level = intr_disable();
     thread_current()->nice = nice;
 
     update_recent_cpu(thread_current(), NULL);
     update_thread_priority(thread_current(), NULL);
+    intr_set_level(old_level);
 }
 
 /* Returns the current thread's nice value. */
@@ -538,7 +552,9 @@ static struct thread *next_thread_to_run(void) {
     if (list_empty(&ready_list)) {
         return idle_thread;
     } else {
-        return list_entry(list_pop_front(&ready_list), struct thread, elem);
+        struct list_elem *max_thread = list_max(&ready_list, thread_priority_comp_max, NULL);
+        list_remove(max_thread);
+        return list_entry(max_thread, struct thread, elem);
     }
 }
 

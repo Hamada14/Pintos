@@ -2,7 +2,7 @@
 #define PINTOS_FIXED_POINT_H
 
 #define f_shift (1 << 14)
-typedef int fixed_point;
+typedef int64_t fixed_point;
 
 /*
  *  Convert n to fixed point:	                    n * f
