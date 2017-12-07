@@ -6,6 +6,7 @@
 
 #define max(n1, n2) ((n1) > (n2) ? (n1) : (n2))
 #define min(n1, n2) ((n1) < (n2) ? (n1) : (n2))
+#define NESTED_DONATION_MAX_DEPTH 8
 
 /* A counting semaphore. */
 struct semaphore {

@@ -85,7 +85,7 @@ void sema_down(struct semaphore *sema) {
 void execute_priority_donation(struct thread *t, struct semaphore *sema) {
   struct semaphore *temp_sema = sema;
   struct thread *temp_t1 = t;
-  for(int i = 0; i < 8 && temp_sema != NULL; i++) {
+  for(int i = 0; i < NESTED_DONATION_MAX_DEPTH && temp_sema != NULL; i++) {
     struct list_elem *max_elem = list_max(&temp_sema->waiters, thread_priority_comp_block, NULL);
     struct thread* max_thread = list_entry(max_elem, struct thread, waiting_elem);
     int mx_pr = max(temp_sema->holder->priority, max_thread->priority);
