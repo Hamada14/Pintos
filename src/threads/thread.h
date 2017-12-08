@@ -93,23 +93,22 @@ struct thread {
   char name[16];             /* Name (for debugging purposes). */
   uint8_t *stack;            /* Saved stack pointer. */
   int priority;              /* Priority. */
-  int real_priority;
+  int real_priority;         /* Actual priority not affected by donations. */
   int64_t wake_up_time;      /* Time until wakeup, refer to
-                                devices/timer.c::timer_sleep() a*/
+                                devices/timer.c::timer_sleep(). a*/
 
-  struct semaphore *waiting_lock;
-
+  /* Shared between thread.c and synch.c */
+  struct semaphore *waiting_lock;  /* Current semaphore being waited upon. */
   struct list_elem allelem;  /* List element for all threads list. */
+  struct list acquired_locks; /* List of acquired locks. */
 
-  struct list acquired_locks;
-
-  /* Shared between thread.c and synch.c. */
+  /* Shared between thread.c and device.c. */
   struct list_elem elem;          /* List element. */
   struct list_elem sleeping_elem; /* List element for sleeping threads list */
   struct list_elem waiting_elem;
 
-  int nice;
-  fixed_point recent_cpu;
+  int nice; /* Nice value of the thread. */
+  fixed_point recent_cpu; /* Recent cpu value of the thread. */
 
 #ifdef USERPROG
   /* Owned by userprog/process.c. */

@@ -13,12 +13,13 @@ struct semaphore {
   unsigned value;      /* Current value. */
   struct list waiters; /* List of waiting threads. */
 
-  int is_lock;
-  int priority;
+  int is_lock; /* True in case the semaphore is actually a lock */
+  int priority; /* Inherited priority in case of a lock */
 
-  struct list_elem thread_key;
+  struct list_elem thread_key; /* List element used by threads to obtain a list of acquired locks by a thread based
+                                    on the assumption that a lock is only acquired by one thread */
 
-  struct thread *holder;
+  struct thread *holder; /* Holder of the semaphore */
 };
 
 void sema_init(struct semaphore *, unsigned value);
@@ -27,8 +28,9 @@ bool sema_try_down(struct semaphore *);
 void sema_up(struct semaphore *);
 void sema_self_test(void);
 
-void execute_priority_donation(struct thread *t, struct semaphore *sema);
+void execute_priority_donation(struct thread *, struct semaphore *);
 bool thread_priority_comp_block(const struct list_elem *,const struct list_elem *, void * UNUSED);
+
 /* Lock. */
 struct lock {
   struct thread *holder;      /* Thread holding lock (for debugging). */

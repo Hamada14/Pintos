@@ -82,21 +82,25 @@ void sema_down(struct semaphore *sema) {
   intr_set_level(old_level);
 }
 
-void execute_priority_donation(struct thread *t, struct semaphore *sema) {
-  struct semaphore *temp_sema = sema;
-  struct thread *temp_t1 = t;
-  for(int i = 0; i < NESTED_DONATION_MAX_DEPTH && temp_sema != NULL; i++) {
-    struct list_elem *max_elem = list_max(&temp_sema->waiters, thread_priority_comp_block, NULL);
-    struct thread* max_thread = list_entry(max_elem, struct thread, waiting_elem);
-    int mx_pr = max(temp_sema->holder->priority, max_thread->priority);
-    temp_sema->priority = max_thread->priority;
+/* Used to execute donation upon a thread and the lock it's currently waiting on.
+    The algorithm used is based on given the lock and the thread newly waiting on it, it updates the priority of the
+    lock holder then switches the given lock and thread to the lock holder and the lock the current lock holder is
+    waiting upon. This process continues until a lock holder isn't waiting on a thread or it reaches a depth of 8.
+  */
+void execute_priority_donation(struct thread *waiting_thread, struct semaphore *waited_on_lock) {
+  ASSERT(waited_on_lock != NULL);
+  ASSERT(waiting_thread != NULL);
 
-    temp_t1 = temp_sema->holder;
+  for(int i = 0; i < NESTED_DONATION_MAX_DEPTH && waited_on_lock != NULL; i++) {
+    struct list_elem *max_elem = list_max(&waited_on_lock->waiters, thread_priority_comp_block, NULL);
+    struct thread* max_priority_thread = list_entry(max_elem, struct thread, waiting_elem);
+    int mx_pr = max(waited_on_lock->holder->priority, max_priority_thread->priority);
+    waited_on_lock->priority = max_priority_thread->priority;
 
-    thread_set_donation_priority(temp_t1, mx_pr);
+    waiting_thread = waited_on_lock->holder;
 
-    temp_sema = temp_t1->waiting_lock;
-
+    thread_set_donation_priority(waiting_thread, mx_pr);
+    waited_on_lock = waiting_thread->waiting_lock;
   }
 }
 
@@ -340,7 +344,7 @@ void cond_signal(struct condition *cond, struct lock *lock) {
 }
 
 bool semaphore_comp(const struct list_elem *e1, const struct list_elem *e2,
-                    void *aux) {
+                    void *aux UNUSED) {
   struct semaphore_elem *sm1 = list_entry(e1, struct semaphore_elem, elem);
   struct semaphore_elem *sm2 = list_entry(e2, struct semaphore_elem, elem);
 
@@ -356,6 +360,7 @@ bool semaphore_comp(const struct list_elem *e1, const struct list_elem *e2,
   } else if (list_empty(&(sm1->semaphore.waiters))) {
     return true;
   }
+  return false;
 }
 
 /* Wakes up all threads, if any, waiting on COND (protected by

@@ -82,7 +82,8 @@ int64_t timer_elapsed(int64_t then) {
 }
 
 /* Sleeps for approximately TICKS timer ticks.  Interrupts must
-   be turned on. */
+   be turned on.
+   It adds the thread to the list of sleeping threads which is checked every tick for who to be waken up. */
 void timer_sleep(int64_t sleep_ticks) {
   ASSERT(intr_get_level() == INTR_ON);
 
@@ -162,7 +163,12 @@ static void timer_interrupt (struct intr_frame *args UNUSED) {
   intr_set_level(old_level);
 }
 
+/* Wakes up all the sleeping threads which should be waked up at the current moment.
+    It maintains a list which is used to find who should be waken up.
+*/
 void wake_up_threads(int64_t current_ticks) {
+  ASSERT(intr_get_level() == INTR_OFF);
+
   struct list_elem *e;
   for (e = list_begin(&sleeping_threads); e != list_end(&sleeping_threads); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, sleeping_elem);
