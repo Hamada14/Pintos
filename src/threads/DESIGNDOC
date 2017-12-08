@@ -3,13 +3,13 @@
 			| PROJECT 1: THREADS |
 			|   DESIGN DOCUMENT  |
 			+--------------------+
-				   
+
 ---- GROUP ----
 
 >> Fill in the names and email addresses of your group members.
 
-Mahmoud Mohamed Hussein  <m7moud.hussein96@gmail.com>     
-Mohamed Ayman Farrag     <Madoo.ayman14@gmail.com>      
+Mahmoud Mohamed Hussein  <m7moud.hussein96@gmail.com>
+Mohamed Ayman Farrag     <Madoo.ayman14@gmail.com>
 Dahlia Chehata Mahmoud   <dahliachehata@gmail.com>
 
 ---- PRELIMINARIES ----
@@ -27,7 +27,7 @@ https://en.wikipedia.org/wiki/Round-robin_scheduling
 https://github.com/kira0204/pintos-thread/blob/master/ubuntu-fix.patch
 *Nice
 https://serverfault.com/questions/116950/what-does-nice-mean-on-cpu-utilization-graphs
-*Priority Inversion 
+*Priority Inversion
 https://en.wikipedia.org/wiki/Priority_inversion
 *Priority Scheduling
 https://www.techopedia.com/definition/21478/priority-scheduling
@@ -42,52 +42,56 @@ https://www.techopedia.com/definition/21478/priority-scheduling
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-devices/timer.c :  sleeping_threads --> static struct list for sleeping threads,sorted by wake_up time of each thread
+devices/timer.c :  sleeping_threads --> static struct list for sleeping threads,sorted by wake_up time of each thread.
+threads/thread.h :   int64_t wake_up_time --> time until wake up for a sleeping thread.
+threads/thread.h :   struct list_elem sleeping_elem --> list element for when a thread is added to sleeping_threads list.
 
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe what happens in a call to timer_sleep(),
 >> including the effects of the timer interrupt handler.
-   
+
    In a call to timer_sleep()
 
-   1. Interrupts are disabled
+   1. Interrupts are disabled.
    2. The current thread’s wake_up time is set to the given sleep ticks plus the current ticks.
-   3. The thread is pushed to the sleeping threads list
-   4. the thread is blocked
-   5. Reset interrupt_level to its old_level value : interrupts are enabled
+   3. The thread is inserted to the sleeping threads list using a comparator to ensure sorted property of the list.
+   4. the thread is blocked.
+   5. Reset interrupt_level to its old_level value.
 
   effects of the timer interrupt handler: refer to devices/timer.c::timer_interrupt (struct intr_frame *args UNUSED)
 
-   1. Interrupts are disabled
-   2. the ticks are incremented by 1
-   3. loop on the sleeping threads list and for each thread with wake up time less than or equal the current ticks
+   1. Interrupts are disabled.
+   2. the ticks are incremented by 1.
+	 3. call to thread_tick()
+   4. loop on the sleeping threads list and for each thread with wake up time less than or equal the current ticks
         a- unblock thread
         b- remove it from its current list
-   4. call to thread_tick()
-   5. Reset interrupt_level to its old_level value : interrupts are enabled
+				In case a thread has a higher wake_up_time, The loop is terminated. (List is sorted)
+   5. Reset interrupt_level to its old_level value.
 
 >> A3: What steps are taken to minimize the amount of time spent in
 >> the timer interrupt handler?
-  
-   An ordered list sorted by the thread wake_up time is used, we iterate on the list  
+
+   An ordered list sorted by the thread wake_up time is used, we iterate on the list
    and for each thread with wake up time less than or equal the current ticks
         a- unblock thread
         b- remove it from its current list
+	 otherwise we terminate the loop, reducing the work done in the handler.
    By this means, we can minimize the time spent.
-    
+
 
 ---- SYNCHRONIZATION ----
 
 >> A4: How are race conditions avoided when multiple threads call
 >> timer_sleep() simultaneously?
-   
-  - the interrupts are disabled during each operation on list and enabled at the end
+
+  - the interrupts are disabled during each operation on list and reset to its old value at the end.
 
 >> A5: How are race conditions avoided when a timer interrupt occurs
 >> during a call to timer_sleep()?
- 
-   - the interrupt is disabled
+
+   - the interrupts are disabled.
 
 ---- RATIONALE ----
 
@@ -95,13 +99,19 @@ devices/timer.c :  sleeping_threads --> static struct list for sleeping threads,
 >> another design you considered?
 
   - This design based on having a sleeping threads list sorted by thread wake_up time
-    following the design of ready list is resonable and efficient in terms of
+    following the design of ready list is reasonable and efficient in terms of
     minimization of the amount of time spent in the timer interrupt handler.
-    This list was declared as a static global variable to be modified by several 
+    This list was declared as a static global variable to be modified by several
     functions : insertion in time_sleep() or deletion in the timer interrupt handler.
     This design is safe too, interrupts are disabled during each operations at the beginning
     and enabled at the end
-    
+
+	- Different design considered: Instead of disabling interrupts we could have used synchronization primitives such as
+		locks, but then timer_sleep could be interrupted and affected by the donation, Priority inversion, system.
+		This design reduces the time when the interrupts are disabled but it would affect the robustness of the timer,
+		because of the effect of priority donation.
+
+		Our design is superior in term of achieving Idempotence where it'll have correct result.
 
 			 PRIORITY SCHEDULING
 			 ===================
@@ -113,37 +123,159 @@ devices/timer.c :  sleeping_threads --> static struct list for sleeping threads,
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
 
-threads/synch.h: 1) modifications in struct semaphore :addition of the following attributes
-                 -int is_lock--> determines if is locked or not
-                 -int priority --> specifies the thread priority
-                 - struct list_elem thread_key-->for each acquire() to know which thread is locked
-                 -struct thread *holder--> the thread which owns the lock 
-                 2) NESTED_DONATION_MAX_DEPTH 8 : macro-define
+threads/synch.h: 1) modifications in struct semaphore: addition of the following attributes
+                 -int is_lock--> determines if the semaphore is a actually used by a lock or not.
+                 -int priority --> specifies the holder thread priority based on donations.
+                 -struct list_elem thread_key-->for each acquire() to know which thread is locked
+                 -struct thread *holder--> the thread which owns the lock
+
+								 2) NESTED_DONATION_MAX_DEPTH 8 : macro-define
 
 threads/thread.h : 1) modifications in struct thread : addition of the following attributes
                   -int real_priority --> original priority of thread before donation
-                  -int64_t wake_up_time --> Time until wakeup,refer to devices/timer_sleep () 
                   -struct semaphore *waiting_lock -->list of threads waiting for the lock
                   -struct list_elem sleeping_elem --> List element for sleeping threads list
                   -struct list_elem waiting_elem --> List element for waiting threads list
-                 
+
 
 >> B2: Explain the data structure used to track priority donation.
 >> Use ASCII art to diagram a nested donation.  (Alternately, submit a
 >> .png file.)
 
+- Each Lock has a pointer to the currently holding thread and the list of the waiting thread.
+- Each thread has a pointer to the lock it's currently waiting for.
+
+- In the following example it's shown how every lock points to the holding thread and can find the currently waiting threads.
+- In this initial frame donation doesn't make a difference and the current running thread is Thread 8 whose priority is 43.
+
+                                     :::::::::::::::::::::::
+:::::::::::::::::::::::::   waiting  ::                   ::
+:: Thread - 1 (29, 29) :: ---------> ::                   ::
+:::::::::::::::::::::::::            ::                   ::
+                                		 ::  Lock 1           ::
+:::::::::::::::::::::::::  waiting   ::                   ::
+:: Thread - 2 (25, 25) :: ---------> ::                   ::
+:::::::::::::::::::::::::            ::                   ::
+                                     ::                   ::
+                                     ::                   ::
+                                     ::                   ::
+                                     :::::::::::::::::::::::
+                                               .
+																							 .
+																							 . Holded
+																							 . By
+																							 .
+																							 .
+																							 .
+																					   \   /
+                                              ':`                          ::::::::::::::::::::::::::::
+																	:::::::::::::::::::::::::    waiting     :                          :
+                                  :: Thread - 4 (30, 30) :: -------------> :                          :
+																	:::::::::::::::::::::::::                :                          :
+                                                                           :     Lock 2               :
+																		                                       :                          :
+																	::::::::::::::::::::::::    waiting      :                          :
+																	:: Thread - 5 (31, 31):: --------------> :                          :
+																	::::::::::::::::::::::::                 :                          :
+                                                                           :                          :
+																							                             :                          :
+																	:::::::::::::::::::::::::    waiting     :                          :
+																	:: Thread - 6 (35, 35) :: -------------> :                          :
+																	:::::::::::::::::::::::::                ::::::::::::::::::::::::::::
+
+																																											.
+																																										  .
+																																										  . Holded
+																																										  . By
+																																										  .
+																																										  .
+																																										  .
+																																										 \   /
+																																										  ':`
+																																						:::::::::::::::::::::::::
+																																						:: Thread - 7 (42, 42) ::
+																																						:::::::::::::::::::::::::
 
 
+:::::::::::::::::::::::::
+:: Thread - 8 (43, 43) :: <--------------- Current running thread
+:::::::::::::::::::::::::
+
+However if we add Thread-3 with a priority 45 to wait on Lock 1, then It'll increase the priority of the thread holding
+Lock 1, (Increase Thread-4's priority from 30 to 45), which will increase the priority of the thread holding Lock-2(AKA Thread-7)
+from priority 42 to 45.
+Thus the current running thread will change from Thread - 8 to Thread - 7.
+
+
+
+
+                                     :::::::::::::::::::::::
+:::::::::::::::::::::::::    waiting ::                   ::
+:: Thread - 1 (29, 29) :: ---------> ::                   ::
+:::::::::::::::::::::::::            ::                   ::
+                                		 ::  Lock 1           ::
+:::::::::::::::::::::::::   waiting  ::                   ::
+:: Thread - 2 (25, 25) :: ---------> ::                   ::
+:::::::::::::::::::::::::            ::                   ::
+                                     ::                   ::
+:::::::::::::::::::::::::   waiting  ::                   ::
+:: Thread - 7 (45, 45) :: -------->  ::                   ::
+:::::::::::::::::::::::::            ::                   ::
+                                     ::                   ::
+                                     :::::::::::::::::::::::
+                                               .
+																							 .
+																							 . Holded
+																							 . By
+																							 .
+																							 .
+																							 .
+																					   \   /
+                                              ':`                          ::::::::::::::::::::::::::::
+																	:::::::::::::::::::::::::    waiting     :                          :
+                                  :: Thread - 4 (45, 30) :: -------------> :                          :
+																	:::::::::::::::::::::::::                :                          :
+                                                                           :     Lock 2               :
+																		                                       :                          :
+																	::::::::::::::::::::::::    waiting      :                          :
+																	:: Thread - 5 (31, 31):: --------------> :                          :
+																	::::::::::::::::::::::::                 :                          :
+                                                                           :                          :
+																							                             :                          :
+																	:::::::::::::::::::::::::    waiting     :                          :
+																	:: Thread - 6 (35, 35) :: -------------> :                          :
+																	:::::::::::::::::::::::::                ::::::::::::::::::::::::::::
+
+																																											.
+																																										  .
+																																										  . Holded
+																																										  . By
+																																										  .
+																																										  .
+																																										  .
+																																										 \   /
+																																										  ':`
+																																						:::::::::::::::::::::::::
+																					Current Running Thread -------> 	:: Thread - 7 (45, 42) ::
+																																						:::::::::::::::::::::::::
+
+
+:::::::::::::::::::::::::
+:: Thread - 8 (43, 43) ::
+:::::::::::::::::::::::::
+
+- In case a thread releases a lock then the priority of the new holder is equal to Max(threads in the waiting List).
+- In short, the donation priority is recalculated but assuming the thread's priority is the initial priority not the one
+achieved using donation except if it can get higher priority using any of the acquired locks.
+That's why each thread holds a list describing the acquired locks.
 
 ---- ALGORITHMS ----
 
 >> B3: How do you ensure that the highest priority thread waiting for
 >> a lock, semaphore, or condition variable wakes up first?
-  
-  -Change the semaphore's waiters list to a sorted list with descending priority order.
-   Every time waking up the waiter, threads are pushed to the ready list from the
-   beginning to the end ,i.e from the highest priority to a the lowest priority. 
-   
+
+  - By iterating over the semaphore's waiters list to obtain the thread that have the maximum priority.
+
 >> B4: Describe the sequence of events when a call to lock_acquire()
 >> causes a priority donation.  How is nested donation handled?
 
@@ -162,14 +294,14 @@ threads/thread.h : 1) modifications in struct thread : addition of the following
      1.4 decrements the semaphore value and let the current thread be the the lock holder
      1.5 Set interrupts to the status before it was disabled
    2. set the lock holder to be the current thread
-  
- 
+
+
  *in the program, the nest priority depth is set to 8
- 
+
 
 >> B5: Describe the sequence of events when lock_release() is called
 >> on a lock that a higher-priority thread is waiting for.
-   
+
    - when a higher priority thread is waiting for the lock that means that the current thread has donated priority
      1. if this priority is because of the lock,  then it will be removed from its donors,lowering its priority
         and unblocking the higher priority thread.
@@ -188,7 +320,7 @@ threads/thread.h : 1) modifications in struct thread : addition of the following
          2.4.1 get the maximum-priority element
          2.4.2 remove it from list
          2.4.3 change the value of the boolean should_yield by calling thread_unblock()
-      2.5 increment the semaphore value by 1 
+      2.5 increment the semaphore value by 1
       2.6 Set interrupts to the status before it was disabled
       2.7 if should_yield is true, calls thread_yields()
 
@@ -198,14 +330,22 @@ threads/thread.h : 1) modifications in struct thread : addition of the following
 >> how your implementation avoids it.  Can you use a lock to avoid
 >> this race?
 
-   
+- Potential race condition is the case in which you try setting the priority to a certain value and a thread with higher
+priority attempts to wake up, While yielding the current thread might not notice that higher priority thread.
+
+- The current implementation avoids it by disabling the interrupts before setting the priority and resetting it back to
+the initial value at the end of thread_set_priority().
+
+- Yes, But It'll have to be added to the timer_interrupt_handler where both won't operate in the same time. the lock
+will be acquired at the beginning of the interrupt and released at the end.
+
 
 ---- RATIONALE ----
 
 >> B7: Why did you choose this design?  In what ways is it superior to
 >> another design you considered?
 
-- Maintaining a 'thread_key list' a 'holder'for each semaphore to know which thread holds the lock 
+- Maintaining a 'thread_key list' a 'holder'for each semaphore to know which thread holds the lock
   as well as -struct semaphore *waiting_lock -->list of threads waiting for the lock
              -struct list_elem sleeping_elem --> List element for sleeping threads list
              -struct list_elem waiting_elem --> List element for waiting threads list
@@ -238,7 +378,7 @@ threads/thread.h : 1) MAX_NICE  20 : macro-define
 >> has a recent_cpu value of 0.  Fill in the table below showing the
 >> scheduling decision and the priority and recent_cpu values for each
 >> thread after each given number of timer ticks:
- 
+
 In the program:
 Initialised variables are:
 
@@ -247,20 +387,20 @@ Initialised variables are:
    TIME_SLICE=4
 
  .-----------------------------------------------------------.
- |             |  recent_cpu  |   priority   |               |             
+ |             |  recent_cpu  |   priority   |               |
  +-------------+----+----+----+----+----+----+---------------+
  | timer ticks | A  | B  | C  | A  | B  | C  | thread to run |
  +-------------+----+----+----+----+----+----+---------------+
- |    0        |  0 |  0 |  0 | 63 | 61 | 59 |      A        |             
- |    4        |  4 |  0 |  0 | 62 | 61 | 59 |      A        |             
- |    8        |  8 |  0 |  0 | 61 | 61 | 59 |      B        |  
- |    12       |  8 |  4 |  0 | 61 | 60 | 59 |      A        |             
- |    16       | 12 |  4 |  0 | 60 | 60 | 59 |      B        |             
- |    20       | 12 |  8 |  0 | 60 | 59 | 59 |      A        |             
- |    24       | 16 |  8 |  0 | 59 | 59 | 59 |      C        |  
- |    28       | 16 |  8 |  4 | 59 | 59 | 58 |      B        |             
- |    32       | 16 | 12 |  4 | 59 | 58 | 58 |      A        | 
- |    36       | 20 | 12 |  4 | 58 | 58 | 58 |      C        |             
+ |    0        |  0 |  0 |  0 | 63 | 61 | 59 |      A        |
+ |    4        |  4 |  0 |  0 | 62 | 61 | 59 |      A        |
+ |    8        |  8 |  0 |  0 | 61 | 61 | 59 |      B        |
+ |    12       |  8 |  4 |  0 | 61 | 60 | 59 |      A        |
+ |    16       | 12 |  4 |  0 | 60 | 60 | 59 |      B        |
+ |    20       | 12 |  8 |  0 | 60 | 59 | 59 |      A        |
+ |    24       | 16 |  8 |  0 | 59 | 59 | 59 |      C        |
+ |    28       | 16 |  8 |  4 | 59 | 59 | 58 |      B        |
+ |    32       | 16 | 12 |  4 | 59 | 58 | 58 |      A        |
+ |    36       | 20 | 12 |  4 | 58 | 58 | 58 |      C        |
  +-------------+----+----+----+----+----+----+---------------+
 
 >> C3: Did any ambiguities in the scheduler specification make values
@@ -269,18 +409,18 @@ Initialised variables are:
 
    -It is unclear if two or more threads have equal priority,which thread is supposed to run.
     We assumed first thread enter the ready list is the one should run.
-    BSD scheduler implementation is the same 
+    BSD scheduler implementation is the same.
 
 >> C4: How is the way you divided the cost of scheduling between code
 >> inside and outside interrupt context likely to affect performance?
 
   - Most of scheduling calculations occur inside the interrupt handler by calling
     threads/thread.c::thread_tick().This affect the performance  negatively specially
-    when the number of threads increades.Every timer tick, thread_tick() (runs in an 
+    when the number of threads increades.Every timer tick, thread_tick() (runs in an
     external interrupt context) is called and the recent_cpu and priority are recalculated
-    for all threads,which is expensive.
-    The only calculation outside the interrupt context is that of  the nice value 
-    of the running thread . The interrupt is disabled when it happens .
+    for all threads, which is expensive.
+    The only calculation outside the interrupt context is that of  the nice value
+    of the running thread. The interrupt is disabled when it happens.
 
 ---- RATIONALE ----
 
@@ -293,11 +433,11 @@ Initialised variables are:
    |           Advantages              |              Disadvantages              |         Improvements          |
    +-----------------------------------+-----------------------------------------+-------------------------------+
    | -The code is mostly simple        |  -iterating over the threads can affect | -Implementing 64 queues       |
-   | -optimized in terms of memory     |  the performance .                      | instead of one as real os     |
+   | -optimized in terms of memory     |  the performance.                       | instead of one as real os     |
    | - we use sorted list in the       |  -diasbling the interrupts during most  | -Avoiding using lists but     |
    |  sleeping threads sorted by wake  |   of the operations                     |  hashmaps or priority queues  |
    |  up time                          |                                         |  to reduce the search time    |
-   +-----------------------------------+-----------------------------------------+-------------------------------+ 
+   +-----------------------------------+-----------------------------------------+-------------------------------+
 
 >> C6: The assignment explains arithmetic for fixed-point math in
 >> detail, but it leaves it open to you to implement it.  Why did you
@@ -306,13 +446,12 @@ Initialised variables are:
 >> type and/or a set of functions or macros to manipulate fixed-point
 >> numbers, why did you do so?  If not, why not?
 
-  - Pintos' implementation for fixed point is based on a header file (fixed_point.h)
-    so we want it to be clear and reusable for pintos users so we implemented it in
-    the same way. Any other c file can include it . But we think it is bad programming
-    style since this header has no implemented c file of its own. The functions are 
-    declared using macros in the header.
+  - We implemented a macros to manipulate fixed-point numbers because macros are evaluated during compile time, thus
+		they're faster during runtime because no function calls are attempted which seems more important to have for any
+		operating systems, Supporting floating point arithmetic with low latency. because fixed point arithmetic can be
+		used extensively over the scale of the system.
 
-   
+
 			   SURVEY QUESTIONS
 			   ================
 
@@ -336,4 +475,3 @@ the quarter.
 >> students, either for future quarters or the remaining projects?
 
 >> Any other comments?
-

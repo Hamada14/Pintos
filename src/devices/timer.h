@@ -28,5 +28,5 @@ void timer_ndelay (int64_t nanoseconds);
 void timer_print_stats (void);
 
 void wake_up_threads(int64_t);
-
+bool thread_wake_up_time_comp(const struct list_elem *t1, const struct list_elem *t2, void *aux UNUSED);
 #endif /* devices/timer.h */

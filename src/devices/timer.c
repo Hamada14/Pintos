@@ -91,8 +91,7 @@ void timer_sleep(int64_t sleep_ticks) {
 
   struct thread *cur_t = thread_current();
   cur_t->wake_up_time = ticks + sleep_ticks;
-  list_push_back(&sleeping_threads, &cur_t->sleeping_elem);
-
+  list_insert_ordered(&sleeping_threads, &cur_t->sleeping_elem, thread_wake_up_time_comp, NULL);
   thread_block();
 
   intr_set_level(old_level);
@@ -158,9 +157,16 @@ void timer_print_stats (void) {
 static void timer_interrupt (struct intr_frame *args UNUSED) {
   enum intr_level old_level = intr_disable();
   ticks++;
-  wake_up_threads(ticks);
   thread_tick();
+  wake_up_threads(ticks);
   intr_set_level(old_level);
+}
+/* Comparator used to compare threads based on their sleep time. */
+
+bool thread_wake_up_time_comp(const struct list_elem *t1, const struct list_elem *t2, void *aux UNUSED) {
+  struct thread *t1_thread = list_entry (t1, struct thread, sleeping_elem);
+  struct thread *t2_thread = list_entry (t2, struct thread, sleeping_elem);
+  return t1_thread->wake_up_time <= t2_thread->wake_up_time;
 }
 
 /* Wakes up all the sleeping threads which should be waked up at the current moment.
@@ -173,7 +179,7 @@ void wake_up_threads(int64_t current_ticks) {
   for (e = list_begin(&sleeping_threads); e != list_end(&sleeping_threads); e = list_next(e)) {
     struct thread *t = list_entry(e, struct thread, sleeping_elem);
     if (t->wake_up_time > current_ticks) {
-        continue;
+        break;
     }
     thread_unblock(t);
     list_remove(e);
