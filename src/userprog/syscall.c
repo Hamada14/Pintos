@@ -3,6 +3,10 @@
 #include <syscall-nr.h>
 #include "threads/interrupt.h"
 #include "threads/thread.h"
+#include "threads/vaddr.h"
+#include "threads/synch.h"
+
+static struct lock lock_filesystem;
 
 static void syscall_handler (struct intr_frame *);
 static void syscall_mapper (int syscall_number);
@@ -13,6 +17,47 @@ void syscall_init (void) {
   intr_register_int (0x30, 3, INTR_ON, syscall_handler, "syscall");
   list_init(&files_list);
   fd = 2;
+}
+
+static void syscall_handler (struct intr_frame *f) {
+  size_t* esp_ptr = (size_t*)f->esp;
+  int syscall_number = *esp_ptr;
+  size_t arg1 = *(esp_ptr + 1);
+  size_t arg2 = *(esp_ptr + 2);
+  size_t arg3 = *(esp_ptr + 3);
+	switch (syscall_number) {
+		case SYS_HALT:
+			halt();
+			break;
+	  case SYS_EXIT:
+	  	break;
+    case SYS_EXEC:
+   	  break;
+	  case SYS_WAIT:
+	   	break;
+    case SYS_CREATE:
+	   //	create(f);
+	   	break;
+    case SYS_REMOVE:
+    	break;
+    case SYS_OPEN:
+    	break;
+    case SYS_FILESIZE:
+    	break;
+    case SYS_READ:
+    	break;
+   	case SYS_WRITE:
+      write_call(arg1, arg2, arg3);
+   		break;
+    case SYS_SEEK:
+    	break;
+    case SYS_TELL:
+    	break;
+    case SYS_CLOSE:
+    	break;
+    default:
+    	break;
+	}
 }
 
 static void halt (void) {
@@ -109,10 +154,6 @@ static int read (struct  intr_frame* f) {
 	}
 }
 
-static int write (int fd, const void *buffer, unsigned length) {
-
-}
-
 static void seek (struct intr_frame* f) {
 	int stack_ptr;
 	stack_ptr = f -> esp;
@@ -152,41 +193,5 @@ static void close (struct intr_frame *f) {
       	if (file->fd == fd) {
       		file_close(file->file);
       	}
-	}
-}
-
-static void syscall_handler (struct intr_frame *f UNUSED) {
-	int syscall_number = f -> esp;
-	switch (syscall_number) {
-		case SYS_HALT:
-			halt();
-			break;
-	    case SYS_EXIT:
-	    	break;
-	    case SYS_EXEC:
-	    	break;
-	    case SYS_WAIT:
-	    	break;
-	    case SYS_CREATE:
-	    	create(f);
-	    	break;
-	    case SYS_REMOVE:
-	    	break;
-	    case SYS_OPEN:
-	    	break;
-	    case SYS_FILESIZE:
-	    	break;
-	    case SYS_READ:
-	    	break;
-	   	case SYS_WRITE:
-	   		break;
-	    case SYS_SEEK:
-	    	break;
-	    case SYS_TELL:
-	    	break;
-	    case SYS_CLOSE:
-	    	break;
-	    default:
-	    	break;
 	}
 }
