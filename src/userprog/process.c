@@ -75,8 +75,8 @@ void append_to_argv(char** argv, bool* load_successful, struct semaphore* sema) 
     while(argv[ptr] != NULL) {
       ptr++;
     }
-    argv[ptr] = load_successful;
-    argv[ptr + 1] = sema;
+    argv[ptr] = (char*)load_successful;
+    argv[ptr + 1] = (char*)sema;
     argv[ptr + 2] = NULL;
 }
 
@@ -123,8 +123,9 @@ start_process (void *argv_)
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
 
-  bool** load_successful;
-  struct semaphore** load_sema;
+  bool** load_successful = malloc(sizeof(bool**));
+  struct semaphore** load_sema = malloc(sizeof(struct semaphore**));
+
   reform_argv(argv, load_successful, load_sema);
 
   success = load (argv, &if_.eip, &if_.esp);
@@ -137,6 +138,9 @@ start_process (void *argv_)
     thread_exit ();
   }
   sema_up(*load_sema);
+
+  free(load_successful);
+  free(load_sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in

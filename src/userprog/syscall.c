@@ -40,6 +40,7 @@ static void syscall_handler (struct intr_frame *f) {
   size_t arg1 = *(esp_ptr + 1);
   size_t arg2 = *(esp_ptr + 2);
   size_t arg3 = *(esp_ptr + 3);
+  printf("%d\t%d\n",arg1, arg3 );
 	switch (syscall_number) {
 		case SYS_HALT:
 			halt();
@@ -64,7 +65,7 @@ static void syscall_handler (struct intr_frame *f) {
     case SYS_READ:
     	break;
    	case SYS_WRITE:
-      	// write(arg1, arg2, arg3);
+      	write(arg1, arg2, arg3);
    		break;
     case SYS_SEEK:
     	break;
