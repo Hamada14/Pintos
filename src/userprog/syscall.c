@@ -32,6 +32,7 @@ static void syscall_handler (struct intr_frame *f) {
 	  case SYS_EXIT:
 	  	break;
     case SYS_EXEC:
+      exec(arg1);
    	  break;
 	  case SYS_WAIT:
 	   	break;
@@ -69,9 +70,10 @@ static void exit (int status) {
 }
 
 static pid_t exec (const char *cmd_line) {
-
+  return process_execute(cmd_line);
 }
 
+/*
 static int wait (pid_t pid) {
 
 }
@@ -195,3 +197,4 @@ static void close (struct intr_frame *f) {
       	}
 	}
 }
+*/

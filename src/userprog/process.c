@@ -18,6 +18,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
+#include "threads/synch.h"
 
 static thread_func start_process NO_RETURN;
 static bool load (char **cmdline, void (**eip) (void), void **esp);
@@ -45,16 +46,42 @@ process_execute (const char *file_name)
   strlcpy(fn_copy, file_name, PGSIZE);
   init_argv(argv, fn_copy);
 
+  bool* load_successful = malloc(sizeof(bool));
+  struct semaphore* load_sema = malloc(sizeof(struct semaphore));
+  sema_init(load_sema, 0);
+  append_to_argv(argv, load_successful, load_sema);
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create (file_name, PRI_DEFAULT, start_process, argv);
   if (tid == TID_ERROR) {
       free_argv(argv);
+  } else {
+    sema_down(load_sema);
+    if(*load_successful != true) {
+      tid = -1;
+    }
   }
 
+  free(load_successful);
+  free(load_sema);
   palloc_free_page(fn_copy);
   return tid;
 }
 
+/*  Appends the boolean pointer for load successful and semaphore to the argv.
+  */
+void append_to_argv(char** argv, bool* load_successful, struct semaphore* sema) {
+    int ptr = 0;
+    while(argv[ptr] != NULL) {
+      ptr++;
+    }
+    argv[ptr] = load_successful;
+    argv[ptr + 1] = sema;
+    argv[ptr + 2] = NULL;
+}
+
+/*  Frees Argv and all it's data.
+  */
 void free_argv(char** argv) {
   int argv_ptr = 0;
   while(argv[argv_ptr] != NULL) {
@@ -95,12 +122,21 @@ start_process (void *argv_)
   if_.gs = if_.fs = if_.es = if_.ds = if_.ss = SEL_UDSEG;
   if_.cs = SEL_UCSEG;
   if_.eflags = FLAG_IF | FLAG_MBS;
+
+  bool** load_successful;
+  struct semaphore** load_sema;
+  reform_argv(argv, load_successful, load_sema);
+
   success = load (argv, &if_.eip, &if_.esp);
 
   /* If load failed, quit. */
   free_argv (argv);
-  if (!success)
+  **load_successful = true;
+  if (!success) {
+    **load_successful = false;
     thread_exit ();
+  }
+  sema_up(*load_sema);
 
   /* Start the user process by simulating a return from an
      interrupt, implemented by intr_exit (in
@@ -110,6 +146,16 @@ start_process (void *argv_)
      and jump to it. */
   asm volatile ("movl %0, %%esp; jmp intr_exit" : : "g" (&if_) : "memory");
   NOT_REACHED ();
+}
+
+void reform_argv(char** argv, bool** load_successful, struct semaphore** load_sema) {
+  int ptr = 0;
+  while(argv[ptr] != NULL) {
+    ptr++;
+  }
+  *load_sema = argv[ptr - 1];
+  *load_successful = argv[ptr - 2];
+  argv[ptr - 2] = NULL;
 }
 
 /* Waits for thread TID to die and returns its exit status.  If
