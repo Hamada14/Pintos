@@ -6,10 +6,25 @@
 #include "threads/vaddr.h"
 #include "threads/synch.h"
 
+
 static struct lock lock_filesystem;
 
 static void syscall_handler (struct intr_frame *);
-static void syscall_mapper (int syscall_number);
+static void halt (void);
+static void exit (int status);
+static pid_t exec (const char *cmd_line);
+static int wait (pid_t pid);
+static bool create (const char *file, unsigned initial_size);
+static bool remove (const char *file);
+static int open (const char *file_name);
+static int filesize (int fd);
+static int read (int fd, void *buffer, unsigned size);
+static int write (int fd, const void *buffer, unsigned size);
+static void seek (int fd, unsigned position);
+static  unsigned tell (int fd);
+static void close (int fd);
+static struct open_file* get_file(file_descriptor fd);
+
 static struct list files_list;
 static file_descriptor fd;
 
@@ -36,9 +51,10 @@ static void syscall_handler (struct intr_frame *f) {
 	  case SYS_WAIT:
 	   	break;
     case SYS_CREATE:
-	   //	create(f);
+	   	create(arg1, arg2);
 	   	break;
     case SYS_REMOVE:
+    	remove(arg1);
     	break;
     case SYS_OPEN:
     	break;
@@ -47,7 +63,7 @@ static void syscall_handler (struct intr_frame *f) {
     case SYS_READ:
     	break;
    	case SYS_WRITE:
-      write_call(arg1, arg2, arg3);
+      	// write(arg1, arg2, arg3);
    		break;
     case SYS_SEEK:
     	break;
@@ -76,122 +92,78 @@ static int wait (pid_t pid) {
 
 }
 
-static bool create (struct intr_frame *f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	const char* file_name = *stack_ptr;
-	stack_ptr = stack_ptr + 4;
-	unsigned initial_size = *stack_ptr;
-	return filesys_create(file_name, initial_size);
+static bool create (const char *file, unsigned initial_size) {
+	return filesys_create(file, initial_size);
 }
 
-static bool remove (struct intr_frame *f) {
-	int stack_ptr;
-	stack_ptr = *(f -> esp);
-	stack_ptr = stack_ptr + 4;
-	const char* file_name = *stack_ptr;
-	return filesys_remove(file_name);
+static bool remove (const char *file) {
+	return filesys_remove(file);
 }
 
-static int open (struct intr_frame *f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	const char* file_name = *stack_ptr;
-	struct file* file_to_open = filesys_open(file_name);
-	if (file_to_open == NULL) {
+static int open (const char *file_name) {
+	struct file* file = filesys_open(file_name);
+	if (file == NULL) {
 		return -1;
 	}
-	struct open_file *file = malloc(sizeof(*(struct *open_file)));
-	open_file->file = file_to_open;
+	struct open_file *open_file = malloc(sizeof(struct open_file*));
+	open_file->file = file;
 	open_file->fd = fd++;
-	list_push_back(&files_list, &open_file->elem);
+	list_push_back(&files_list, &open_file->syscall_list_elem);
+	list_push_back(&thread_current()->owned_files, &open_file->thread_list_elem);
 	return open_file->fd;
 }
 
-static int filesize (struct intr_frame* f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	int fd = *stack_ptr;
-	struct open_file *file_to_get;
-	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
-      struct open_file *file = list_entry (e, struct open_file, elem);
-      if (file->fd == fd) {
-      	file_to_get = file;
-      	break;
-      }
-    }
-    if (file_to_get == NULL) {
-    	//I DON'T KNOW WHAT TO RETURN
-    }
-    return file_length(file_to_get->file);
+static int filesize (int fd) {
+	struct open_file *file = get_file(fd);
+    return file_length(file->file);
 }
 
-static int read (struct  intr_frame* f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	int fd = *stack_ptr;
-	stack_ptr = stack_ptr + 4;
-	void* buffer = *stack_ptr;
-	stack_ptr = stack_ptr + 4;
-	unsigned length = *stack_ptr;
-	int size_read = 0;
+static int read (int fd, void *buffer, unsigned size) {
 	if (fd == 0) {
-		while (length--) {
-			buffer++ = input_getc();
+		while (size--) {
+			buffer = input_getc();
+			buffer += sizeof(buffer);
 		}
 	} else {
-		for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
-      		struct open_file *file = list_entry (e, struct open_file, elem);
-      		if (file->fd == fd) {
-      			return file_read(file->file, buffer, length);
-      		}
-    	}
-    	return -1;
+		struct open_file* file = get_file(fd);
+		if (file != NULL) {
+			return file_read(file->file, buffer, size);
+		} else {
+       		return -1;
+       	}
 	}
 }
 
-static void seek (struct intr_frame* f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	int fd = *stack_ptr;
-	stack_ptr = stack_ptr + 4;
-	unsigned position = *stack_ptr;
-	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
-      	struct open_file *file = list_entry (e, struct open_file, elem);
-      	if (file->fd == fd) {
-      		file_seek(file->file, position);
-      	}
+static void seek (int fd, unsigned position) {
+   	struct open_file *file = get_file(fd);
+   	if (file != NULL) {
+		file_seek(file->file, position);
 	}
 }
 
-static unsigned tell (struct intr_frame* f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	int fd = *stack_ptr;
-	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
-      	struct open_file *file = list_entry (e, struct open_file, elem);
-      	if (file->fd == fd) {
-      		return file_tell(file->file);
-      	}
-	}
+static unsigned tell (int fd) {
+	struct open_file *file = get_file(fd);
+    if (file != NULL) {
+    	return file_tell(file->file);
+    }
 	//RETURN THAT NO FILE WITH THE GIVEN FD NOT FOUND
 }
 
-static void close (struct intr_frame *f) {
-	int stack_ptr;
-	stack_ptr = f -> esp;
-	stack_ptr = stack_ptr + 4;
-	int fd = *stack_ptr;
-	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
-      	struct open_file *file = list_entry (e, struct open_file, elem);
-      	if (file->fd == fd) {
-      		file_close(file->file);
-      	}
+static void close (int fd) {
+	struct open_file *file = get_file(fd);
+    if (file != NULL) {
+    	file_close(file->file);
 	}
+	list_remove(&file->syscall_list_elem);
+	list_remove(&file->thread_list_elem);
+}
+
+static struct open_file* get_file(file_descriptor fd) {
+	for (struct list_elem* e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
+      		struct open_file *file = list_entry (e, struct open_file, syscall_list_elem);
+      		if (file->fd == fd) {
+      			return file;
+      		}
+	}
+	return NULL;
 }

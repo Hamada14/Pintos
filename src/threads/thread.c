@@ -11,8 +11,12 @@
 #include "threads/switch.h"
 #include "threads/synch.h"
 #include "threads/vaddr.h"
+#include "lib/user/syscall.c"
+#include "userprog/syscall.h"
+
 #ifdef USERPROG
 #include "userprog/process.h"
+
 #endif
 
 /* Random value for struct thread's `magic' member.
@@ -69,6 +73,7 @@ static bool is_thread (struct thread *) UNUSED;
 static void *alloc_frame (struct thread *, size_t size);
 static void schedule (void);
 void thread_schedule_tail (struct thread *prev);
+static void close_files(struct thread*);
 static tid_t allocate_tid (void);
 
 /* Initializes the threading system by transforming the code
@@ -383,7 +388,7 @@ thread_get_recent_cpu (void)
   /* Not yet implemented. */
   return 0;
 }
-
+
 /* Idle thread.  Executes when no other thread is ready to run.
 
    The idle thread is initially put on the ready list by
@@ -542,8 +547,16 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread) 
     {
       ASSERT (prev != cur);
+      close_files(prev);
       palloc_free_page (prev);
     }
+}
+
+static void close_files(struct thread* t) {
+  for (struct list_elem* e = list_begin (&t->owned_files); e != list_end (&t->owned_files); e = list_next (e)) {
+    struct open_file *file = list_entry (e, struct open_file, thread_list_elem);
+    close (file->fd);
+  }
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and
@@ -582,7 +595,7 @@ allocate_tid (void)
 
   return tid;
 }
-
+
 /* Offset of `stack' member within `struct thread'.
    Used by switch.S, which can't figure it out on its own. */
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
