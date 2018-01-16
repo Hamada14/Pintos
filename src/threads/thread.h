@@ -24,6 +24,19 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
+/*
+   child_thread is controlled by parent , represents the thread as child process 
+   when the child process exits, child_thread remains till destroyed by parent
+ */
+struct child_thread
+  {
+    tid_t tid;
+    int exit_status;                 /* returned by wait (). */
+    struct list_elem elem;           /* used by parent to put its children. */
+    struct semaphore*wait_sema;      /* used by parent to block child when wait () is called. */                        
+    struct thread *t_ptr;            /* pointer to the thread, becomes NULL if the process exits. */
+};
+
 /* A kernel thread or user process.
 
    Each thread structure is stored in its own 4 kB page.  The
@@ -102,7 +115,12 @@ struct thread
     /* Owned by thread.c. */
     unsigned magic;                     /* Detects stack overflow. */
 
-    struct list owned_files;
+
+  /* used in system calls */
+  struct child_thread *child_thread; /* A pointer be accessed by parent if child thread is destroyed */
+  struct list children_list;/* contains all children processes created using exec syscall (for user process thread) */             
+  struct list owned_files;  
+
   };
 
 /* If false (default), use round-robin scheduler.
