@@ -5,7 +5,7 @@
 #include "threads/thread.h"
 #include "threads/vaddr.h"
 #include "threads/synch.h"
-
+#include "userprog/pagedir.h"
 
 static struct lock lock_filesystem;
 
@@ -40,8 +40,7 @@ static void syscall_handler (struct intr_frame *f) {
   size_t arg1 = *(esp_ptr + 1);
   size_t arg2 = *(esp_ptr + 2);
   size_t arg3 = *(esp_ptr + 3);
-  printf("%d\t%d\n",arg1, arg3 );
-	switch (syscall_number) {
+  switch (syscall_number) {
 		case SYS_HALT:
 			halt();
 			break;
@@ -168,4 +167,16 @@ static struct open_file* get_file(file_descriptor fd) {
       		}
 	}
 	return NULL;
+}
+
+static int
+write (int fd, const void *buffer, unsigned size)
+{
+  // write to console
+  if (fd == 1)
+    {
+      putbuf (buffer, size);
+      return size;
+    }
+  return size;
 }
