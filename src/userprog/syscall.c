@@ -33,7 +33,7 @@ static int wait (pid_t pid) {
 
 static bool create (struct intr_frame *f) {
 	int stack_ptr;
-	stack_ptr = *(f -> esp);
+	stack_ptr = f -> esp;
 	stack_ptr = stack_ptr + 4;
 	const char* file_name = *stack_ptr;
 	stack_ptr = stack_ptr + 4;
@@ -51,22 +51,26 @@ static bool remove (struct intr_frame *f) {
 
 static int open (struct intr_frame *f) {
 	int stack_ptr;
-	stack_ptr = *f -> esp;
+	stack_ptr = f -> esp;
 	stack_ptr = stack_ptr + 4;
 	const char* file_name = *stack_ptr;
 	struct file* file_to_open = filesys_open(file_name);
 	if (file_to_open == NULL) {
 		return -1;
 	}
-	struct *open_file file = malloc(sizeof(*(struct *open_file)));
+	struct open_file *file = malloc(sizeof(*(struct *open_file)));
 	open_file->file = file_to_open;
 	open_file->fd = fd++;
 	list_push_back(&files_list, &open_file->elem);
 	return open_file->fd;
 }
 
-static int filesize (int fd) {
-	struct *open_file file_to_get;
+static int filesize (struct intr_frame* f) {
+	int stack_ptr;
+	stack_ptr = f -> esp;
+	stack_ptr = stack_ptr + 4;
+	int fd = *stack_ptr;
+	struct open_file *file_to_get;
 	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
       struct open_file *file = list_entry (e, struct open_file, elem);
       if (file->fd == fd) {
@@ -80,24 +84,75 @@ static int filesize (int fd) {
     return file_length(file_to_get->file);
 }
 
-static int read (int fd, void *buffer, unsigned length) {
-
+static int read (struct  intr_frame* f) {
+	int stack_ptr;
+	stack_ptr = f -> esp;
+	stack_ptr = stack_ptr + 4;
+	int fd = *stack_ptr;
+	stack_ptr = stack_ptr + 4;
+	void* buffer = *stack_ptr;
+	stack_ptr = stack_ptr + 4;
+	unsigned length = *stack_ptr;
+	int size_read = 0;
+	if (fd == 0) {
+		while (length--) {
+			buffer++ = input_getc();
+		}
+	} else {
+		for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
+      		struct open_file *file = list_entry (e, struct open_file, elem);
+      		if (file->fd == fd) {
+      			return file_read(file->file, buffer, length);
+      		}
+    	}
+    	return -1;
+	}
 }
 
 static int write (int fd, const void *buffer, unsigned length) {
 
 }
 
-static void seek (int fd, unsigned position) {
-
+static void seek (struct intr_frame* f) {
+	int stack_ptr;
+	stack_ptr = f -> esp;
+	stack_ptr = stack_ptr + 4;
+	int fd = *stack_ptr;
+	stack_ptr = stack_ptr + 4;
+	unsigned position = *stack_ptr;
+	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
+      	struct open_file *file = list_entry (e, struct open_file, elem);
+      	if (file->fd == fd) {
+      		file_seek(file->file, position);
+      	}
+	}
 }
 
-static unsigned tell (int fd) {
-
+static unsigned tell (struct intr_frame* f) {
+	int stack_ptr;
+	stack_ptr = f -> esp;
+	stack_ptr = stack_ptr + 4;
+	int fd = *stack_ptr;
+	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
+      	struct open_file *file = list_entry (e, struct open_file, elem);
+      	if (file->fd == fd) {
+      		return file_tell(file->file);
+      	}
+	}
+	//RETURN THAT NO FILE WITH THE GIVEN FD NOT FOUND
 }
 
-static void close (int fd) {
-
+static void close (struct intr_frame *f) {
+	int stack_ptr;
+	stack_ptr = f -> esp;
+	stack_ptr = stack_ptr + 4;
+	int fd = *stack_ptr;
+	for (e = list_begin (&files_list); e != list_end (&files_list); e = list_next (e)) {
+      	struct open_file *file = list_entry (e, struct open_file, elem);
+      	if (file->fd == fd) {
+      		file_close(file->file);
+      	}
+	}
 }
 
 static void syscall_handler (struct intr_frame *f UNUSED) {
