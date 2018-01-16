@@ -9,12 +9,12 @@ typedef int pid_t;
 
 typedef int file_descriptor;
 
-void syscall_init (void);
-
 struct open_file {
 	file_descriptor fd;
-	struct list_elem elem;
+	struct list_elem syscall_list_elem;
+	struct list_elem thread_list_elem;
 	struct file* file;
 };
 
+void syscall_init (void);
 #endif /* userprog/syscall.h */
