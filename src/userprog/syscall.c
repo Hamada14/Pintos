@@ -24,7 +24,6 @@ static void seek(int fd, unsigned position);
 static unsigned tell(int fd);
 static void close(int fd);
 static struct open_file *get_file(file_descriptor fd);
-static void *convert_user_kernel(void *user_addr);
 struct file *get_file_by_fd(int fd);
 static void close_all_files();
 
@@ -34,6 +33,7 @@ static file_descriptor fd_counter;
 void syscall_init(void) {
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
   list_init(&files_list);
+  lock_init(&lock_filesystem);
   fd_counter = 2;
 }
 
@@ -165,8 +165,10 @@ static int open(const char *file_name) {
 
 static int filesize(int fd) {
   struct open_file *file = get_file(fd);
-  int size = file_length(file->file);
-  return size;
+  if (file != NULL) {
+    return file_length(file->file);
+  }
+  return -1;
 }
 
 static int read(int fd, void *buffer, unsigned size) {
@@ -222,57 +224,19 @@ static struct open_file *get_file(file_descriptor fd) {
 }
 
 static int write(int fd, const void *buffer, unsigned size) {
-  buffer = convert_user_kernel(buffer);
-
-  // write to console
   if (fd == 1) {
     putbuf(buffer, size);
     return size;
   }
-
-  // write to file
   lock_acquire(&lock_filesystem);
-  struct file *file = get_file_by_fd(fd);
+  struct open_file *file = get_file(fd);
   if (file == NULL) {
     lock_release(&lock_filesystem);
     return -1;
   }
-  int sz = file_write(file, buffer, size);
+  int sz = file_write(file->file, buffer, size);
   lock_release(&lock_filesystem);
   return sz;
-}
-
-/* return kernel virtual address pointing to the physical address pointed to by
-   user_addr, to be used in kernel code.
-   If uaddr has no mapping in pdir, exits
-*/
-static void *convert_user_kernel(void *user_addr) {
-  struct thread *cur = thread_current();
-  void *kernel_addr = NULL;
-  if (is_user_vaddr(user_addr))
-    kernel_addr = pagedir_get_page(cur->pagedir, user_addr);
-  if (kernel_addr == NULL)
-    exit(-1);
-  return kernel_addr;
-}
-
-/* access file_table */
-
-/* fd = 0,1 are reserved for stdin, stdout
-return file object related to the file descriptor or NULL*/
-
-struct file *get_file_by_fd(int fd) {
-  struct list *file_table = &thread_current()->owned_files;
-  struct list_elem *e;
-  struct open_file *entry;
-  for (e = list_begin(file_table); e != list_end(file_table);
-       e = list_next(e)) {
-    entry = list_entry(e, struct open_file, syscall_list_elem);
-    if (entry->fd == fd)
-      return entry->file;
-  }
-
-  return NULL;
 }
 
 static void close_all_files() {
