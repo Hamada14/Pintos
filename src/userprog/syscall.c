@@ -135,24 +135,35 @@ static pid_t exec(const char *cmd_line) {
 static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
+  lock_acquire(&lock_filesystem);
   validate_addr(file);
   if (file == NULL || *file == '\0' || initial_size < 0) {
+  	lock_release(&lock_filesystem);
   	exit(-1);
   }
   if (strlen(file) > 14) {
+    lock_release(&lock_filesystem);
   	return false;
   }
+  lock_release(&lock_filesystem);
   return filesys_create(file, initial_size);
 }
 
-static bool remove(const char *file) { return filesys_remove(file); }
+static bool remove(const char *file) { 
+  lock_acquire(&lock_filesystem);
+  bool ret = filesys_remove(file);
+  lock_release(&lock_filesystem);
+  return ret;
+}
 
 static int open(const char *file_name) {
   if (file_name == NULL) {
   	exit(-1);
   }
+  lock_acquire(&lock_filesystem);
   struct file *file = filesys_open(file_name);
   if (file == NULL) {
+  	lock_release(&lock_filesystem);
   	return -1;
   }
   struct open_file *open_file = malloc(sizeof(*open_file));
@@ -160,15 +171,19 @@ static int open(const char *file_name) {
   open_file->fd = fd_counter++;
   list_push_back(&files_list, &open_file->syscall_list_elem);
   list_push_back(&thread_current()->owned_files, &open_file->thread_list_elem);
+  lock_release(&lock_filesystem);
   return open_file->fd;
 }
 
 static int filesize(int fd) {
   struct open_file *file = get_file(fd);
+  lock_acquire(&lock_filesystem);
+  int sz = -1;
   if (file != NULL) {
-    return file_length(file->file);
+    sz = file_length(file->file);
   }
-  return -1;
+  lock_release(&lock_filesystem);
+  return sz;
 }
 
 static int read(int fd, void *buffer, unsigned size) {
@@ -179,39 +194,55 @@ static int read(int fd, void *buffer, unsigned size) {
     }
     return size;
   } else {
+  	lock_acquire(&lock_filesystem);
     struct open_file *file = get_file_by_thread(fd);
+    int sz = -1;
     if (file != NULL) {
-      return file_read(file->file, buffer, size);
-    } else {
-      return -1;
+      sz = file_read(file->file, buffer, size);
     }
+    lock_release(&lock_filesystem);
+    return sz;
   }
 }
 
 static void seek(int fd, unsigned position) {
+  lock_acquire(&lock_filesystem);
   struct open_file *file = get_file_by_thread(fd);
   if (file != NULL) {
     file_seek(file->file, position);
+    lock_release(&lock_filesystem);
+  } else {
+    lock_release(&lock_filesystem);
+    exit(-1);
   }
-  exit(-1);
 }
 
 static unsigned tell(int fd) {
+  lock_acquire(&lock_filesystem);
   struct open_file *file = get_file_by_thread(fd);
   if (file != NULL) {
-    return file_tell(file->file);
+    int ret = file_tell(file->file);
+    lock_release(&lock_filesystem);
+    return ret;
+  } else {
+	lock_release(&lock_filesystem);
+	exit(-1);
   }
-  exit(-1);
 }
 
 static void close(int fd) {
+  lock_acquire(&lock_filesystem);
   struct open_file* file = get_file_by_thread(fd);
   if (file == NULL) {
+  	lock_release(&lock_filesystem);
   	return;
+  } else {
+    file_close(file->file);
+    list_remove(&file->syscall_list_elem);
+    list_remove(&file->thread_list_elem);
+    free(file);
+    lock_release(&lock_filesystem);
   }
-  file_close(file->file);
-  list_remove(&file->syscall_list_elem);
-  list_remove(&file->thread_list_elem);
 }
 
 static int write(int fd, const void *buffer, unsigned size) {
@@ -221,11 +252,10 @@ static int write(int fd, const void *buffer, unsigned size) {
   }
   lock_acquire(&lock_filesystem);
   struct open_file *file = get_file_by_thread(fd);
-  if (file == NULL) {
-    lock_release(&lock_filesystem);
-    return -1;
+  int sz = -1;
+  if (file != NULL) {
+    sz = file_write(file->file, buffer, size);
   }
-  int sz = file_write(file->file, buffer, size);
   lock_release(&lock_filesystem);
   return sz;
 }
