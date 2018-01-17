@@ -104,7 +104,7 @@ struct thread
     int priority;                       /* Priority. */
    	int64_t sleep_time;				/* Time until wakeup, refer to devices/timer.c::timer_sleep() a*/
 	  struct list_elem allelem;           /* List element for all threads list. */
-
+    int depth;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
 
