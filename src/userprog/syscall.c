@@ -24,7 +24,7 @@ static void seek(int fd, unsigned position);
 static unsigned tell(int fd);
 static void close(int fd);
 static struct open_file *get_file(file_descriptor fd);
-struct file *get_file_by_fd(int fd);
+static struct open_file *get_file_by_thread(file_descriptor fd);
 static void close_all_files();
 
 static struct list files_list;
@@ -177,8 +177,9 @@ static int read(int fd, void *buffer, unsigned size) {
       buffer = input_getc();
       buffer += sizeof(buffer);
     }
+    return size;
   } else {
-    struct open_file *file = get_file(fd);
+    struct open_file *file = get_file_by_thread(fd);
     if (file != NULL) {
       return file_read(file->file, buffer, size);
     } else {
@@ -188,7 +189,7 @@ static int read(int fd, void *buffer, unsigned size) {
 }
 
 static void seek(int fd, unsigned position) {
-  struct open_file *file = get_file(fd);
+  struct open_file *file = get_file_by_thread(fd);
   if (file != NULL) {
     file_seek(file->file, position);
   }
@@ -196,7 +197,7 @@ static void seek(int fd, unsigned position) {
 }
 
 static unsigned tell(int fd) {
-  struct open_file *file = get_file(fd);
+  struct open_file *file = get_file_by_thread(fd);
   if (file != NULL) {
     return file_tell(file->file);
   }
@@ -204,12 +205,29 @@ static unsigned tell(int fd) {
 }
 
 static void close(int fd) {
-  struct open_file *file = get_file(fd);
-  if (file != NULL) {
-    file_close(file->file);
-    list_remove(&file->syscall_list_elem);
-  	list_remove(&file->thread_list_elem);
+  struct open_file* file = get_file_by_thread(fd);
+  if (file == NULL) {
+  	return;
   }
+  file_close(file->file);
+  list_remove(&file->syscall_list_elem);
+  list_remove(&file->thread_list_elem);
+}
+
+static int write(int fd, const void *buffer, unsigned size) {
+  if (fd == 1) {
+    putbuf(buffer, size);
+    return size;
+  }
+  lock_acquire(&lock_filesystem);
+  struct open_file *file = get_file_by_thread(fd);
+  if (file == NULL) {
+    lock_release(&lock_filesystem);
+    return -1;
+  }
+  int sz = file_write(file->file, buffer, size);
+  lock_release(&lock_filesystem);
+  return sz;
 }
 
 static struct open_file *get_file(file_descriptor fd) {
@@ -223,26 +241,21 @@ static struct open_file *get_file(file_descriptor fd) {
   return NULL;
 }
 
-static int write(int fd, const void *buffer, unsigned size) {
-  if (fd == 1) {
-    putbuf(buffer, size);
-    return size;
+static struct open_file *get_file_by_thread(file_descriptor fd) {
+  for (struct list_elem *e = list_begin(&thread_current()->owned_files);
+       e != list_end(&thread_current()->owned_files); e = list_next(e)) {
+    struct open_file *file = list_entry(e, struct open_file, thread_list_elem);
+    if (file->fd == fd) {
+      return file;
+    }
   }
-  lock_acquire(&lock_filesystem);
-  struct open_file *file = get_file(fd);
-  if (file == NULL) {
-    lock_release(&lock_filesystem);
-    return -1;
-  }
-  int sz = file_write(file->file, buffer, size);
-  lock_release(&lock_filesystem);
-  return sz;
+  return NULL;
 }
 
 static void close_all_files() {
-	for (struct list_elem *e = list_begin(&files_list);
-       e != list_end(&files_list); e = list_next(e)) {
-    struct open_file *file = list_entry(e, struct open_file, syscall_list_elem);
+	for (struct list_elem *e = list_begin(&thread_current()->owned_files);
+       e != list_end(&thread_current()->owned_files); e = list_next(e)) {
+    struct open_file *file = list_entry(e, struct open_file, thread_list_elem);
     file_close(file->file);
     list_remove(&file->syscall_list_elem);
   	list_remove(&file->thread_list_elem);
