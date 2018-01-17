@@ -26,6 +26,7 @@ static void close(int fd);
 static struct open_file *get_file(file_descriptor fd);
 static void *convert_user_kernel(void *user_addr);
 struct file *get_file_by_fd(int fd);
+static void close_all_files();
 
 static struct list files_list;
 static file_descriptor fd_counter;
@@ -88,6 +89,7 @@ static void syscall_handler(struct intr_frame *f) {
     validate_addr(esp_ptr + 1);
     validate_addr(esp_ptr + 2);
     validate_addr(esp_ptr + 3);
+	validate_addr(*(esp_ptr + 2));
     f->eax = read(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_WRITE:
@@ -95,7 +97,7 @@ static void syscall_handler(struct intr_frame *f) {
     validate_addr(esp_ptr + 2);
     validate_addr(esp_ptr + 3);
     validate_addr(*(esp_ptr + 2));
-    f->eax = write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
+	f->eax = write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_SEEK:
     validate_addr(esp_ptr + 1);
@@ -119,6 +121,7 @@ static void syscall_handler(struct intr_frame *f) {
 static void halt(void) { shutdown_power_off(); }
 
 static void exit(int status) {
+  close_all_files();
   thread_current()->thread_data->exit_status = status;
   printf ("%s: exit(%d)\n", thread_name(), status);
   sema_up(thread_current()->thread_data->wait_sema);
@@ -145,16 +148,18 @@ static bool create(const char *file, unsigned initial_size) {
 static bool remove(const char *file) { return filesys_remove(file); }
 
 static int open(const char *file_name) {
+  if (file_name == NULL) {
+  	exit(-1);
+  }
   struct file *file = filesys_open(file_name);
   if (file == NULL) {
-    return -1;
+  	return -1;
   }
   struct open_file *open_file = malloc(sizeof(*open_file));
   open_file->file = file;
   open_file->fd = fd_counter++;
   list_push_back(&files_list, &open_file->syscall_list_elem);
   list_push_back(&thread_current()->owned_files, &open_file->thread_list_elem);
-  ASSERT(open_file->fd == 2);
   return open_file->fd;
 }
 
@@ -185,6 +190,7 @@ static void seek(int fd, unsigned position) {
   if (file != NULL) {
     file_seek(file->file, position);
   }
+  exit(-1);
 }
 
 static unsigned tell(int fd) {
@@ -192,11 +198,10 @@ static unsigned tell(int fd) {
   if (file != NULL) {
     return file_tell(file->file);
   }
-  // RETURN THAT NO FILE WITH THE GIVEN FD NOT FOUND
+  exit(-1);
 }
 
 static void close(int fd) {
-  ASSERT(false);
   struct open_file *file = get_file(fd);
   if (file != NULL) {
     file_close(file->file);
@@ -268,4 +273,14 @@ struct file *get_file_by_fd(int fd) {
   }
 
   return NULL;
+}
+
+static void close_all_files() {
+	for (struct list_elem *e = list_begin(&files_list);
+       e != list_end(&files_list); e = list_next(e)) {
+    struct open_file *file = list_entry(e, struct open_file, syscall_list_elem);
+    file_close(file->file);
+    list_remove(&file->syscall_list_elem);
+  	list_remove(&file->thread_list_elem);
+  }
 }
