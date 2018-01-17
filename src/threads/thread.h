@@ -24,18 +24,6 @@ typedef int tid_t;
 #define PRI_DEFAULT 31                  /* Default priority. */
 #define PRI_MAX 63                      /* Highest priority. */
 
-/*
-   child_thread is controlled by parent , represents the thread as child process 
-   when the child process exits, child_thread remains till destroyed by parent
- */
-struct child_thread
-  {
-    tid_t tid;
-    int exit_status;                 /* returned by wait (). */
-    struct list_elem elem;           /* used by parent to put its children. */
-    struct semaphore*wait_sema;      /* used by parent to block child when wait () is called. */                        
-    struct thread *t_ptr;            /* pointer to the thread, becomes NULL if the process exits. */
-};
 
 /* A kernel thread or user process.
 
@@ -93,6 +81,19 @@ struct child_thread
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+   /*
+      child_thread is controlled by parent , represents the thread as child process
+      when the child process exits, child_thread remains till destroyed by parent
+    */
+struct thread_data
+ {
+   tid_t tid;
+   int exit_status;                 /* returned by wait (). */
+   struct list_elem elem;           /* used by parent to put its children. */
+   struct semaphore* wait_sema;      /* used by parent to block child when wait () is called. */
+  };
+
 struct thread
   {
     /* Owned by thread.c. */
@@ -102,7 +103,7 @@ struct thread
     uint8_t *stack;                     /* Saved stack pointer. */
     int priority;                       /* Priority. */
    	int64_t sleep_time;				/* Time until wakeup, refer to devices/timer.c::timer_sleep() a*/
-	struct list_elem allelem;           /* List element for all threads list. */
+	  struct list_elem allelem;           /* List element for all threads list. */
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -116,11 +117,10 @@ struct thread
     unsigned magic;                     /* Detects stack overflow. */
 
 
-  /* used in system calls */
-  struct child_thread *child_thread; /* A pointer be accessed by parent if child thread is destroyed */
-  struct list children_list;/* contains all children processes created using exec syscall (for user process thread) */             
-  struct list owned_files;  
-
+    /* used in system calls */
+    struct thread_data* thread_data; /* A pointer be accessed by parent if child thread is destroyed */
+    struct list children_data_list;/* contains all children processes created using exec syscall (for user process thread) */
+    struct list owned_files;
   };
 
 /* If false (default), use round-robin scheduler.
@@ -129,6 +129,7 @@ struct thread
 extern bool thread_mlfqs;
 
 void thread_init (void);
+void init_thread_data(struct thread_data* thread_data, struct thread *t);
 void thread_start (void);
 
 void thread_tick (void);

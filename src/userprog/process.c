@@ -50,7 +50,7 @@ tid_t process_execute(const char *file_name) {
   append_to_argv(argv, load_successful, load_sema);
 
   /* Create a new thread to execute FILE_NAME. */
-  tid = thread_create(file_name, PRI_DEFAULT, start_process, argv);
+  tid = thread_create(argv[0], PRI_DEFAULT, start_process, argv);
   if (tid == TID_ERROR) {
     free_argv(argv);
   } else {
@@ -169,14 +169,12 @@ void reform_argv(char **argv, bool **load_successful,
 
    This function will be implemented in problem 2-2.  For now, it
    does nothing. */
-int process_wait(tid_t child_tid UNUSED) {
-  struct child_thread *child_thread = get_child_thread(child_tid);
-  if (child_thread == NULL)
+int process_wait(tid_t child_tid) {
+  struct thread_data* child_thread_data = get_child_thread(child_tid);
+  if (child_thread_data == NULL)
     return -1;
-  if (child_thread->t_ptr != NULL &&
-      child_thread->t_ptr->status != THREAD_DYING)
-    sema_down(&child_thread->wait_sema);
-  int status = child_thread->exit_status;
+  sema_down(&child_thread_data->wait_sema);
+  int status = child_thread_data->exit_status;
   remove_child(child_tid);
   return status;
 }

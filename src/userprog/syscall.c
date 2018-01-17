@@ -47,11 +47,13 @@ static void syscall_handler(struct intr_frame *f) {
     halt();
     break;
   case SYS_EXIT:
+    exit(arg1);
     break;
   case SYS_EXEC:
-    exec(arg1);
+    exec((char*)arg1);
     break;
   case SYS_WAIT:
+    wait((pid_t)arg1);
     break;
   case SYS_CREATE:
     create(arg1, arg2);
@@ -81,9 +83,16 @@ static void syscall_handler(struct intr_frame *f) {
 
 static void halt(void) { shutdown_power_off(); }
 
-static void exit(int status) {}
+static void exit(int status) {
+  thread_current()->thread_data->exit_status = status;
+  sema_up(thread_current()->thread_data->wait_sema);
+  printf ("%s: exit(%d)\n", thread_name(), status);
+  process_exit();
+}
 
 static pid_t exec(const char *cmd_line) { return process_execute(cmd_line); }
+
+static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
   return filesys_create(file, initial_size);
@@ -181,7 +190,6 @@ static int write(int fd, const void *buffer, unsigned size) {
   return sz;
 }
 
-static int wait(pid_t pid) { return process_wait(pid); }
 /* return kernel virtual address pointing to the physical address pointed to by
    user_addr, to be used in kernel code.
    If uaddr has no mapping in pdir, exits
