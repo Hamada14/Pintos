@@ -44,6 +44,9 @@ validate_addr(size_t* adr) {
 }
 
 static void syscall_handler(struct intr_frame *f) {
+  if(f->esp == NULL) {
+    exit(-1);
+  }
   size_t *esp_ptr = f->esp;
   validate_addr(esp_ptr);
   int syscall_number = *esp_ptr;
@@ -57,11 +60,12 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_EXEC:
     validate_addr(esp_ptr + 1);
-    exec(*(esp_ptr + 1));
+    validate_addr(*(esp_ptr + 1));
+    f->eax = exec(*(esp_ptr + 1));
     break;
   case SYS_WAIT:
     validate_addr(esp_ptr + 1);
-    wait(*(esp_ptr + 1));
+    f->eax = wait(*(esp_ptr + 1));
     break;
   case SYS_CREATE:
     validate_addr(esp_ptr + 1);
@@ -70,27 +74,28 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_REMOVE:
     validate_addr(esp_ptr + 1);
-    remove(*(esp_ptr + 1));
+    f->eax = remove(*(esp_ptr + 1));
     break;
   case SYS_OPEN:
-    validate_addr(esp_ptr + 1);
+    validate_addr(*(esp_ptr + 1));
     f->eax = open(*(esp_ptr + 1));
     break;
   case SYS_FILESIZE:
     validate_addr(esp_ptr + 1);
-    filesize(*(esp_ptr + 1));
+    f->eax = filesize(*(esp_ptr + 1));
     break;
   case SYS_READ:
     validate_addr(esp_ptr + 1);
     validate_addr(esp_ptr + 2);
     validate_addr(esp_ptr + 3);
-    read(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
+    f->eax = read(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_WRITE:
     validate_addr(esp_ptr + 1);
     validate_addr(esp_ptr + 2);
     validate_addr(esp_ptr + 3);
-    write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
+    validate_addr(*(esp_ptr + 2));
+    f->eax = write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_SEEK:
     validate_addr(esp_ptr + 1);
@@ -99,7 +104,7 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_TELL:
     validate_addr(esp_ptr + 1);
-    tell(*(esp_ptr + 1));
+    f->eax = tell(*(esp_ptr + 1));
     break;
   case SYS_CLOSE:
     validate_addr(esp_ptr + 1);
