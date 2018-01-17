@@ -38,15 +38,15 @@ void syscall_init(void) {
 
 static void
 validate_addr(size_t* adr) {
-    if(!is_user_vaddr(adr)) {
+  if(adr < 0 || (!is_user_vaddr(adr)) || adr == NULL || pagedir_get_page (thread_current()->pagedir, adr) == NULL) {
       exit(-1);
-    }
+  }
 }
 
 static void syscall_handler(struct intr_frame *f) {
   size_t *esp_ptr = (size_t *)f->esp;
-  int syscall_number = *esp_ptr;
   validate_addr(esp_ptr);
+  int syscall_number = *esp_ptr;
   switch (syscall_number) {
   case SYS_HALT:
     halt();
@@ -56,6 +56,7 @@ static void syscall_handler(struct intr_frame *f) {
     exit(*(esp_ptr + 1));
     break;
   case SYS_EXEC:
+    validate_addr(esp_ptr + 1);
     exec(*(esp_ptr + 1));
     break;
   case SYS_WAIT:
@@ -72,10 +73,18 @@ static void syscall_handler(struct intr_frame *f) {
     remove(*(esp_ptr + 1));
     break;
   case SYS_OPEN:
+    validate_addr(esp_ptr + 1);
+    open(*(esp_ptr + 1));
     break;
   case SYS_FILESIZE:
+    validate_addr(esp_ptr + 1);
+    filesize(*(esp_ptr + 1));
     break;
   case SYS_READ:
+    validate_addr(esp_ptr + 1);
+    validate_addr(esp_ptr + 2);
+    validate_addr(esp_ptr + 3);
+    read(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_WRITE:
     validate_addr(esp_ptr + 1);
@@ -84,12 +93,20 @@ static void syscall_handler(struct intr_frame *f) {
     write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_SEEK:
+    validate_addr(esp_ptr + 1);
+    validate_addr(esp_ptr + 2);
+    seek(*(esp_ptr + 1), *(esp_ptr + 2));
     break;
   case SYS_TELL:
+    validate_addr(esp_ptr + 1);
+    tell(*(esp_ptr + 1));
     break;
   case SYS_CLOSE:
+    validate_addr(esp_ptr + 1);
+    close(*(esp_ptr + 1));
     break;
   default:
+    exit(-1);
     break;
   }
 }
