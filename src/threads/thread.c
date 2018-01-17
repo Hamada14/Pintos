@@ -188,10 +188,10 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   t->thread_data = malloc(sizeof(struct thread_data));
-  init_thread_data(t->thread_data, t);
-  list_push_back (&(thread_current()->children_data_list), &(t->thread_data->elem));
 
   tid = t->tid = allocate_tid ();
+  init_thread_data(t->thread_data, t);
+  list_push_back (&(thread_current()->children_data_list), &(t->thread_data->elem));
 
   /* Prepare thread for first run by initializing its stack.
      Do this atomically so intermediate values for the 'stack'

@@ -36,30 +36,40 @@ void syscall_init(void) {
   fd = 2;
 }
 
+static void
+validate_addr(size_t* adr) {
+    if(!is_user_vaddr(adr)) {
+      exit(-1);
+    }
+}
+
 static void syscall_handler(struct intr_frame *f) {
   size_t *esp_ptr = (size_t *)f->esp;
   int syscall_number = *esp_ptr;
-  size_t arg1 = *(esp_ptr + 1);
-  size_t arg2 = *(esp_ptr + 2);
-  size_t arg3 = *(esp_ptr + 3);
+  validate_addr(esp_ptr);
   switch (syscall_number) {
   case SYS_HALT:
     halt();
     break;
   case SYS_EXIT:
-    exit(arg1);
+    validate_addr(esp_ptr + 1);
+    exit(*(esp_ptr + 1));
     break;
   case SYS_EXEC:
-    exec((char*)arg1);
+    exec(*(esp_ptr + 1));
     break;
   case SYS_WAIT:
-    wait((pid_t)arg1);
+    validate_addr(esp_ptr + 1);
+    wait(*(esp_ptr + 1));
     break;
   case SYS_CREATE:
-    create(arg1, arg2);
+    validate_addr(esp_ptr + 1);
+    validate_addr(esp_ptr + 2);
+    create(*(esp_ptr + 1), *(esp_ptr + 2));
     break;
   case SYS_REMOVE:
-    remove(arg1);
+    validate_addr(esp_ptr + 1);
+    remove(*(esp_ptr + 1));
     break;
   case SYS_OPEN:
     break;
@@ -68,7 +78,10 @@ static void syscall_handler(struct intr_frame *f) {
   case SYS_READ:
     break;
   case SYS_WRITE:
-    write(arg1, arg2, arg3);
+    validate_addr(esp_ptr + 1);
+    validate_addr(esp_ptr + 2);
+    validate_addr(esp_ptr + 3);
+    write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_SEEK:
     break;

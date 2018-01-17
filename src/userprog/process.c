@@ -171,9 +171,11 @@ void reform_argv(char **argv, bool **load_successful,
    does nothing. */
 int process_wait(tid_t child_tid) {
   struct thread_data* child_thread_data = get_child_thread(child_tid);
-  if (child_thread_data == NULL)
+  if (child_thread_data == NULL) {
     return -1;
-  sema_down(&child_thread_data->wait_sema);
+  }
+  sema_down(child_thread_data->wait_sema);
+
   int status = child_thread_data->exit_status;
   remove_child(child_tid);
   return status;
