@@ -132,6 +132,7 @@ static void start_process(void *argv_) {
   **load_successful = true;
   if (!success) {
     **load_successful = false;
+    sema_up(*load_sema);
     thread_exit();
   }
   sema_up(*load_sema);

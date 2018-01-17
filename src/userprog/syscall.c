@@ -38,13 +38,13 @@ void syscall_init(void) {
 
 static void
 validate_addr(size_t* adr) {
-  if(adr < 0 || (!is_user_vaddr(adr)) || adr == NULL || pagedir_get_page (thread_current()->pagedir, adr) == NULL) {
+  if(adr < 0 || adr == NULL || (!is_user_vaddr(adr)) || (pagedir_get_page (thread_current()->pagedir, adr) == NULL)) {
       exit(-1);
   }
 }
 
 static void syscall_handler(struct intr_frame *f) {
-  size_t *esp_ptr = (size_t *)f->esp;
+  size_t *esp_ptr = f->esp;
   validate_addr(esp_ptr);
   int syscall_number = *esp_ptr;
   switch (syscall_number) {
@@ -115,12 +115,14 @@ static void halt(void) { shutdown_power_off(); }
 
 static void exit(int status) {
   thread_current()->thread_data->exit_status = status;
-  sema_up(thread_current()->thread_data->wait_sema);
   printf ("%s: exit(%d)\n", thread_name(), status);
+  sema_up(thread_current()->thread_data->wait_sema);
   thread_exit();
 }
 
-static pid_t exec(const char *cmd_line) { return process_execute(cmd_line); }
+static pid_t exec(const char *cmd_line) {
+  return (pid_t)process_execute(cmd_line);
+}
 
 static int wait(pid_t pid) { return process_wait(pid); }
 
