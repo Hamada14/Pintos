@@ -108,6 +108,12 @@ static pid_t exec(const char *cmd_line) { return process_execute(cmd_line); }
 static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
+  if (file == NULL || *file == '\0' || initial_size < 0) {
+  	exit(-1);
+  }
+  if (strlen(file) > 14) {
+  	return false;
+  }
   return filesys_create(file, initial_size);
 }
 
@@ -128,7 +134,8 @@ static int open(const char *file_name) {
 
 static int filesize(int fd) {
   struct open_file *file = get_file(fd);
-  return file_length(file->file);
+  int size = file_length(file->file);
+  return size;
 }
 
 static int read(int fd, void *buffer, unsigned size) {
