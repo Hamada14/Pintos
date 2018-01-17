@@ -87,7 +87,7 @@ static void exit(int status) {
   thread_current()->thread_data->exit_status = status;
   sema_up(thread_current()->thread_data->wait_sema);
   printf ("%s: exit(%d)\n", thread_name(), status);
-  process_exit();
+  thread_exit();
 }
 
 static pid_t exec(const char *cmd_line) { return process_execute(cmd_line); }
