@@ -28,12 +28,12 @@ static void *convert_user_kernel(void *user_addr);
 struct file *get_file_by_fd(int fd);
 
 static struct list files_list;
-static file_descriptor fd;
+static file_descriptor fd_counter;
 
 void syscall_init(void) {
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
   list_init(&files_list);
-  fd = 2;
+  fd_counter = 2;
 }
 
 static void
@@ -57,16 +57,16 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_EXEC:
     validate_addr(esp_ptr + 1);
-    f->eax = exec(*(esp_ptr + 1));
+    exec(*(esp_ptr + 1));
     break;
   case SYS_WAIT:
     validate_addr(esp_ptr + 1);
-    f->eax = wait(*(esp_ptr + 1));
+    wait(*(esp_ptr + 1));
     break;
   case SYS_CREATE:
     validate_addr(esp_ptr + 1);
     validate_addr(esp_ptr + 2);
-    create(*(esp_ptr + 1), *(esp_ptr + 2));
+    f->eax = create(*(esp_ptr + 1), *(esp_ptr + 2));
     break;
   case SYS_REMOVE:
     validate_addr(esp_ptr + 1);
@@ -74,7 +74,7 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_OPEN:
     validate_addr(esp_ptr + 1);
-    open(*(esp_ptr + 1));
+    f->eax = open(*(esp_ptr + 1));
     break;
   case SYS_FILESIZE:
     validate_addr(esp_ptr + 1);
@@ -121,12 +121,13 @@ static void exit(int status) {
 }
 
 static pid_t exec(const char *cmd_line) {
-  return process_execute(cmd_line);
+  return (pid_t)process_execute(cmd_line);
 }
 
 static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
+  validate_addr(file);
   if (file == NULL || *file == '\0' || initial_size < 0) {
   	exit(-1);
   }
@@ -143,11 +144,12 @@ static int open(const char *file_name) {
   if (file == NULL) {
     return -1;
   }
-  struct open_file *open_file = malloc(sizeof(struct open_file *));
+  struct open_file *open_file = malloc(sizeof(*open_file));
   open_file->file = file;
-  open_file->fd = fd++;
+  open_file->fd = fd_counter++;
   list_push_back(&files_list, &open_file->syscall_list_elem);
   list_push_back(&thread_current()->owned_files, &open_file->thread_list_elem);
+  ASSERT(open_file->fd == 2);
   return open_file->fd;
 }
 
@@ -189,12 +191,13 @@ static unsigned tell(int fd) {
 }
 
 static void close(int fd) {
+  ASSERT(false);
   struct open_file *file = get_file(fd);
   if (file != NULL) {
     file_close(file->file);
+    list_remove(&file->syscall_list_elem);
+  	list_remove(&file->thread_list_elem);
   }
-  list_remove(&file->syscall_list_elem);
-  list_remove(&file->thread_list_elem);
 }
 
 static struct open_file *get_file(file_descriptor fd) {
