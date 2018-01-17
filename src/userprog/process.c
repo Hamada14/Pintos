@@ -56,7 +56,7 @@ tid_t process_execute(const char *file_name) {
   } else {
     sema_down(load_sema);
     if (*load_successful != true) {
-      tid = -1;
+      tid = TID_ERROR;
     }
   }
 

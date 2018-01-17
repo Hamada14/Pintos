@@ -57,11 +57,11 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_EXEC:
     validate_addr(esp_ptr + 1);
-    exec(*(esp_ptr + 1));
+    f->eax = exec(*(esp_ptr + 1));
     break;
   case SYS_WAIT:
     validate_addr(esp_ptr + 1);
-    wait(*(esp_ptr + 1));
+    f->eax = wait(*(esp_ptr + 1));
     break;
   case SYS_CREATE:
     validate_addr(esp_ptr + 1);
@@ -121,7 +121,7 @@ static void exit(int status) {
 }
 
 static pid_t exec(const char *cmd_line) {
-  return (pid_t)process_execute(cmd_line);
+  return process_execute(cmd_line);
 }
 
 static int wait(pid_t pid) { return process_wait(pid); }
