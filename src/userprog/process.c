@@ -49,11 +49,16 @@ tid_t process_execute(const char *file_name) {
   sema_init(load_sema, 0);
   append_to_argv(argv, load_successful, load_sema);
 
+  if(thread_current()->depth == 30) {
+    free(load_successful);
+    free(load_sema);
+    free_argv(argv);
+    palloc_free_page(fn_copy);
+    return TID_ERROR;
+  }
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(argv[0], PRI_DEFAULT, start_process, argv);
-  if (tid == TID_ERROR) {
-    free_argv(argv);
-  } else {
+  if (tid != TID_ERROR) {
     sema_down(load_sema);
     if (*load_successful != true) {
       tid = TID_ERROR;
@@ -127,8 +132,8 @@ static void start_process(void *argv_) {
 
   success = load(argv, &if_.eip, &if_.esp);
 
+  free_argv(argv_);
   /* If load failed, quit. */
-  free_argv(argv);
   **load_successful = true;
   if (!success) {
     **load_successful = false;

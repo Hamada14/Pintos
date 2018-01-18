@@ -176,7 +176,7 @@ static int open(const char *file_name) {
     lock_release(&lock_filesystem);
     return -1;
   }
-  struct open_file *open_file = malloc(sizeof(*open_file));
+  struct open_file *open_file = malloc(sizeof(struct open_file));
   open_file->file = file;
   open_file->fd = fd_counter++;
   open_file->file_name = malloc((1 + strlen(file_name)) * sizeof(char));
@@ -188,8 +188,8 @@ static int open(const char *file_name) {
 }
 
 static int filesize(int fd) {
-  struct open_file *file = get_file(fd);
   lock_acquire(&lock_filesystem);
+  struct open_file *file = get_file(fd);
   int sz = -1;
   if (file != NULL) {
     sz = file_length(file->file);
@@ -303,11 +303,5 @@ static struct open_file *get_file_by_thread(file_descriptor fd) {
 }
 
 void close_all_files(void) {
-  for (struct list_elem *e = list_begin(&thread_current()->owned_files);
-       e != list_end(&thread_current()->owned_files); e = list_next(e)) {
-    struct open_file *file = list_entry(e, struct open_file, thread_list_elem);
-    file_close(file->file);
-    list_remove(&file->syscall_list_elem);
-    list_remove(&file->thread_list_elem);
-  }
+
 }
