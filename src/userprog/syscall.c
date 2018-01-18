@@ -4,6 +4,7 @@
 #include "threads/vaddr.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
+#include "filesys/filesys.h"
 #include <stdio.h>
 #include <syscall-nr.h>
 
@@ -122,6 +123,9 @@ static void syscall_handler(struct intr_frame *f) {
 static void halt(void) { shutdown_power_off(); }
 
 static void exit(int status) {
+  lock_acquire(&executable_files_lock);
+  remove_executable_file(thread_name());
+  lock_release(&executable_files_lock);
   close_all_files();
   thread_current()->thread_data->exit_status = status;
   printf ("%s: exit(%d)\n", thread_name(), status);
@@ -149,7 +153,7 @@ static bool create(const char *file, unsigned initial_size) {
   return filesys_create(file, initial_size);
 }
 
-static bool remove(const char *file) { 
+static bool remove(const char *file) {
   lock_acquire(&lock_filesystem);
   bool ret = filesys_remove(file);
   lock_release(&lock_filesystem);
@@ -169,6 +173,8 @@ static int open(const char *file_name) {
   struct open_file *open_file = malloc(sizeof(*open_file));
   open_file->file = file;
   open_file->fd = fd_counter++;
+  open_file->file_name = malloc((1 + strlen(file_name)) * sizeof(char));
+  strlcpy(open_file->file_name, file_name, strlen(file_name) + 1);
   list_push_back(&files_list, &open_file->syscall_list_elem);
   list_push_back(&thread_current()->owned_files, &open_file->thread_list_elem);
   lock_release(&lock_filesystem);
@@ -256,7 +262,14 @@ static int write(int fd, const void *buffer, unsigned size) {
   struct open_file *file = get_file_by_thread(fd);
   int sz = -1;
   if (file != NULL) {
+    lock_acquire(&executable_files_lock);
+    if(is_executable_file(file->file_name)) {
+      lock_release(&executable_files_lock);
+      lock_release(&lock_filesystem);
+      return 0;
+    }
     sz = file_write(file->file, buffer, size);
+    lock_release(&executable_files_lock);
   }
   lock_release(&lock_filesystem);
   return sz;

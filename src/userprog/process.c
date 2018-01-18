@@ -297,14 +297,22 @@ bool load(char **argv, void (**eip)(void), void **esp) {
   bool success = false;
   int i;
 
+  char* file_copy = malloc((1 + strlen(argv[0]) * sizeof(char)));
+  strlcpy(file_copy, argv[0], strlen(argv[0]) + 1);
+
+  lock_acquire(&executable_files_lock);
+  add_executable_file(file_copy);
+  lock_release(&executable_files_lock);
+
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
   if (t->pagedir == NULL)
     goto done;
   process_activate();
 
+
   /* Open executable file. */
-  file = filesys_open(argv[0]);
+  file = filesys_open(file_copy);
   if (file == NULL) {
     printf("load: %s: open failed\n", argv[0]);
     goto done;
@@ -383,6 +391,12 @@ bool load(char **argv, void (**eip)(void), void **esp) {
 done:
   /* We arrive here whether the load is successful or not. */
   file_close(file);
+  if(success == false) {
+    lock_acquire(&executable_files_lock);
+    remove_executable_file(file_copy);
+    lock_release(&executable_files_lock);
+  }
+  free(file_copy);
   return success;
 }
 

@@ -3,6 +3,19 @@
 
 #include <stdbool.h>
 #include "filesys/off_t.h"
+#include "threads/synch.h"
+
+struct executable_file {
+  char* file_name;
+  struct list_elem elem;
+};
+
+struct list open_executable_files;
+struct lock executable_files_lock;
+
+bool is_executable_file(char* file_name);
+void add_executable_file(char* file_name);
+void remove_executable_file(char* file_name);
 
 /* Sectors of system file inodes. */
 #define FREE_MAP_SECTOR 0       /* Free map file inode sector. */
