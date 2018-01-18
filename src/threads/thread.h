@@ -118,6 +118,7 @@ struct thread
 
 
     /* used in system calls */
+    unsigned fd_counter;
     struct thread_data* thread_data; /* A pointer be accessed by parent if child thread is destroyed */
     struct list children_data_list;/* contains all children processes created using exec syscall (for user process thread) */
     struct list owned_files;
