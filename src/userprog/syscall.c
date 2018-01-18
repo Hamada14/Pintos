@@ -70,6 +70,7 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_CREATE:
     validate_addr(esp_ptr + 1);
+    validate_addr(*(esp_ptr + 1));
     validate_addr(esp_ptr + 2);
     f->eax = create(*(esp_ptr + 1), *(esp_ptr + 2));
     break;
@@ -136,7 +137,6 @@ static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
   lock_acquire(&lock_filesystem);
-  validate_addr(file);
   if (file == NULL || *file == '\0' || initial_size < 0) {
   	lock_release(&lock_filesystem);
   	exit(-1);
@@ -187,14 +187,15 @@ static int filesize(int fd) {
 }
 
 static int read(int fd, void *buffer, unsigned size) {
+  lock_acquire(&lock_filesystem);
   if (fd == 0) {
     while (size--) {
       buffer = input_getc();
       buffer += sizeof(buffer);
     }
+    lock_release(&lock_filesystem);
     return size;
   } else {
-  	lock_acquire(&lock_filesystem);
     struct open_file *file = get_file_by_thread(fd);
     int sz = -1;
     if (file != NULL) {
@@ -246,11 +247,12 @@ static void close(int fd) {
 }
 
 static int write(int fd, const void *buffer, unsigned size) {
+  lock_acquire(&lock_filesystem);
   if (fd == 1) {
     putbuf(buffer, size);
+    lock_release(&lock_filesystem);
     return size;
   }
-  lock_acquire(&lock_filesystem);
   struct open_file *file = get_file_by_thread(fd);
   int sz = -1;
   if (file != NULL) {
