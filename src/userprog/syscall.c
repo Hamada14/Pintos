@@ -312,5 +312,7 @@ void close_all_files() {
     file_close(file->file);
     list_remove(&file->syscall_list_elem);
   	list_remove(&file->thread_list_elem);
+    free(file->file_name);
+    free(file);
   }
 }
