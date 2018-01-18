@@ -156,8 +156,8 @@ void reform_argv(char **argv, bool **load_successful,
   while (argv[ptr] != NULL) {
     ptr++;
   }
-  *load_sema = argv[ptr - 1];
-  *load_successful = argv[ptr - 2];
+  *load_sema = (struct semaphore*)argv[ptr - 1];
+  *load_successful = (bool*)argv[ptr - 2];
   argv[ptr - 2] = NULL;
 }
 

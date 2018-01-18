@@ -5,6 +5,7 @@
 #include "threads/interrupt.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "userprog/syscall.h"
 
 /* Number of page faults processed. */
 static long long page_fault_cnt;
@@ -159,7 +160,7 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading",
           user ? "user" : "kernel");
 
-  if(fault_addr == NULL || fault_addr < 0 || fault_addr >= PHYS_BASE) {
+  if(fault_addr == NULL || (size_t *)fault_addr < (size_t *)0 || fault_addr >= PHYS_BASE) {
     exit(-1);
   }
   kill (f);

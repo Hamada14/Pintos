@@ -2,6 +2,8 @@
 #include <debug.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include "threads/malloc.h"
 #include "filesys/file.h"
 #include "filesys/free-map.h"
 #include "filesys/inode.h"
@@ -132,7 +134,7 @@ bool is_executable_file(char* file_name) {
   return false;
 }
 
-void remove_executable_file(char* file_name) {
+void remove_executable_file(const char* file_name) {
   if(list_empty(&open_executable_files)) {
     return;
   }

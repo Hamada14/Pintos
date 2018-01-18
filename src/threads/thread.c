@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #include "lib/user/syscall.c"
 #include "userprog/syscall.h"
+#include "threads/malloc.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -626,7 +627,7 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 /** for system calls **/
 
-struct child_thread*
+struct thread_data*
 get_child_thread (tid_t tid)
 {
   struct list *children = &thread_current ()->children_data_list;

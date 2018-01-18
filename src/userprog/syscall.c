@@ -1,12 +1,18 @@
+#include "filesys/filesys.h"
+#include "filesys/file.h"
 #include "threads/interrupt.h"
 #include "threads/synch.h"
 #include "threads/thread.h"
 #include "threads/vaddr.h"
+#include "threads/malloc.h"
 #include "userprog/pagedir.h"
 #include "userprog/syscall.h"
-#include "filesys/filesys.h"
+#include <string.h>
 #include <stdio.h>
+#include "devices/input.h"
 #include <syscall-nr.h>
+#include "userprog/process.h"
+#include "devices/shutdown.h"
 
 static struct lock lock_filesystem;
 
@@ -26,27 +32,27 @@ static unsigned tell(int fd);
 static void close(int fd);
 static struct open_file *get_file(file_descriptor fd);
 static struct open_file *get_file_by_thread(file_descriptor fd);
-static void close_all_files();
+
 
 static struct list files_list;
 static file_descriptor fd_counter;
 
-void syscall_init(void) {
+void syscall_init (){
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
   list_init(&files_list);
   lock_init(&lock_filesystem);
   fd_counter = 2;
 }
 
-static void
-validate_addr(size_t* adr) {
-  if(adr < 0 || adr == NULL || (!is_user_vaddr(adr)) || (pagedir_get_page (thread_current()->pagedir, adr) == NULL)) {
-      exit(-1);
+static void validate_addr(size_t *adr) {
+  if (adr < (size_t *)0 || adr == NULL || (!is_user_vaddr(adr)) ||
+      (pagedir_get_page(thread_current()->pagedir, adr) == NULL)) {
+    exit(-1);
   }
 }
 
 static void syscall_handler(struct intr_frame *f) {
-  if(f->esp == NULL) {
+  if (f->esp == NULL) {
     exit(-1);
   }
   size_t *esp_ptr = f->esp;
@@ -58,12 +64,12 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_EXIT:
     validate_addr(esp_ptr + 1);
-    exit(*(esp_ptr + 1));
+    exit((int)*(esp_ptr + 1));
     break;
   case SYS_EXEC:
     validate_addr(esp_ptr + 1);
-    validate_addr(*(esp_ptr + 1));
-    f->eax = exec(*(esp_ptr + 1));
+    validate_addr((size_t *)*(esp_ptr + 1));
+    f->eax = exec((const char *)*(esp_ptr + 1));
     break;
   case SYS_WAIT:
     validate_addr(esp_ptr + 1);
@@ -71,17 +77,17 @@ static void syscall_handler(struct intr_frame *f) {
     break;
   case SYS_CREATE:
     validate_addr(esp_ptr + 1);
-    validate_addr(*(esp_ptr + 1));
+    validate_addr((size_t *)*(esp_ptr + 1));
     validate_addr(esp_ptr + 2);
-    f->eax = create(*(esp_ptr + 1), *(esp_ptr + 2));
+    f->eax = create((const char *)*(esp_ptr + 1), *(esp_ptr + 2));
     break;
   case SYS_REMOVE:
     validate_addr(esp_ptr + 1);
-    f->eax = remove(*(esp_ptr + 1));
+    f->eax = remove((const char *)*(esp_ptr + 1));
     break;
   case SYS_OPEN:
-    validate_addr(*(esp_ptr + 1));
-    f->eax = open(*(esp_ptr + 1));
+    validate_addr((size_t*)*(esp_ptr + 1));
+    f->eax = open((const char *)*(esp_ptr + 1));
     break;
   case SYS_FILESIZE:
     validate_addr(esp_ptr + 1);
@@ -91,15 +97,15 @@ static void syscall_handler(struct intr_frame *f) {
     validate_addr(esp_ptr + 1);
     validate_addr(esp_ptr + 2);
     validate_addr(esp_ptr + 3);
-	validate_addr(*(esp_ptr + 2));
-    f->eax = read(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
+    validate_addr((size_t*)*(esp_ptr + 2));
+    f->eax = read(*(esp_ptr + 1), (size_t*)*(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_WRITE:
     validate_addr(esp_ptr + 1);
     validate_addr(esp_ptr + 2);
     validate_addr(esp_ptr + 3);
-    validate_addr(*(esp_ptr + 2));
-	f->eax = write(*(esp_ptr + 1), *(esp_ptr + 2), *(esp_ptr + 3));
+    validate_addr((size_t*)*(esp_ptr + 2));
+    f->eax = write(*(esp_ptr + 1), (size_t *)*(esp_ptr + 2), *(esp_ptr + 3));
     break;
   case SYS_SEEK:
     validate_addr(esp_ptr + 1);
@@ -128,7 +134,7 @@ static void exit(int status) {
   lock_release(&executable_files_lock);
   close_all_files();
   thread_current()->thread_data->exit_status = status;
-  printf ("%s: exit(%d)\n", thread_name(), status);
+  printf("%s: exit(%d)\n", thread_name(), status);
   sema_up(thread_current()->thread_data->wait_sema);
   thread_exit();
 }
@@ -141,13 +147,13 @@ static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
   lock_acquire(&lock_filesystem);
-  if (file == NULL || *file == '\0' || initial_size < 0) {
-  	lock_release(&lock_filesystem);
-  	exit(-1);
+  if (file == NULL || *file == '\0') {
+    lock_release(&lock_filesystem);
+    exit(-1);
   }
   if (strlen(file) > 14) {
     lock_release(&lock_filesystem);
-  	return false;
+    return false;
   }
   lock_release(&lock_filesystem);
   return filesys_create(file, initial_size);
@@ -162,13 +168,13 @@ static bool remove(const char *file) {
 
 static int open(const char *file_name) {
   if (file_name == NULL) {
-  	exit(-1);
+    exit(-1);
   }
   lock_acquire(&lock_filesystem);
   struct file *file = filesys_open(file_name);
   if (file == NULL) {
-  	lock_release(&lock_filesystem);
-  	return -1;
+    lock_release(&lock_filesystem);
+    return -1;
   }
   struct open_file *open_file = malloc(sizeof(*open_file));
   open_file->file = file;
@@ -227,22 +233,21 @@ static void seek(int fd, unsigned position) {
 static unsigned tell(int fd) {
   lock_acquire(&lock_filesystem);
   struct open_file *file = get_file_by_thread(fd);
-  if (file != NULL) {
-    int ret = file_tell(file->file);
+  if(file == NULL) {
     lock_release(&lock_filesystem);
-    return ret;
-  } else {
-	lock_release(&lock_filesystem);
-	exit(-1);
+    exit(-1);
   }
+  int ret = file_tell(file->file);
+  lock_release(&lock_filesystem);
+  return ret;
 }
 
 static void close(int fd) {
   lock_acquire(&lock_filesystem);
-  struct open_file* file = get_file_by_thread(fd);
+  struct open_file *file = get_file_by_thread(fd);
   if (file == NULL) {
-  	lock_release(&lock_filesystem);
-  	return;
+    lock_release(&lock_filesystem);
+    return;
   } else {
     file_close(file->file);
     list_remove(&file->syscall_list_elem);
@@ -263,7 +268,7 @@ static int write(int fd, const void *buffer, unsigned size) {
   int sz = -1;
   if (file != NULL) {
     lock_acquire(&executable_files_lock);
-    if(is_executable_file(file->file_name)) {
+    if (is_executable_file(file->file_name)) {
       lock_release(&executable_files_lock);
       lock_release(&lock_filesystem);
       return 0;
@@ -297,12 +302,12 @@ static struct open_file *get_file_by_thread(file_descriptor fd) {
   return NULL;
 }
 
-static void close_all_files() {
-	for (struct list_elem *e = list_begin(&thread_current()->owned_files);
+void close_all_files(void) {
+  for (struct list_elem *e = list_begin(&thread_current()->owned_files);
        e != list_end(&thread_current()->owned_files); e = list_next(e)) {
     struct open_file *file = list_entry(e, struct open_file, thread_list_elem);
     file_close(file->file);
     list_remove(&file->syscall_list_elem);
-  	list_remove(&file->thread_list_elem);
+    list_remove(&file->thread_list_elem);
   }
 }
