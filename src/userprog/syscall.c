@@ -164,11 +164,13 @@ static bool remove(const char *file) {
 
 static int open(const char *file_name) {
   if (file_name == NULL) {
-    exit(-1);
+  	exit(-1);
+  } else if (*file_name == '\0') {
+  	return -1;
   }
   lock_acquire(&lock_filesystem);
   struct file *file = filesys_open(file_name);
-  if (file == NULL || *file_name == '\0') {
+  if (file == NULL) {
   	lock_release(&lock_filesystem);
   	return -1;
   }
@@ -177,8 +179,7 @@ static int open(const char *file_name) {
   open_file->fd = thread_current()->fd_counter++;
   open_file->file_name = malloc((1 + strlen(file_name)) * sizeof(char));
   strlcpy(open_file->file_name, file_name, strlen(file_name) + 1);
-  list_push_back(&files_list, &open_file->syscall_list_elem);
-  list_push_back(&thread_current()->owned_files, &open_file->thread_list_elem);
+  list_push_back(&thread_current()->files, &open_file->elem);
   lock_release(&lock_filesystem);
   return open_file->fd;
 }
@@ -243,16 +244,12 @@ static unsigned tell(int fd) {
 static void close(int fd) {
   lock_acquire(&lock_filesystem);
   struct open_file *file = get_file(fd);
-  if (file == NULL) {
-    lock_release(&lock_filesystem);
-    return;
-  } else {
+  if (file != NULL) {
     file_close(file->file);
-    list_remove(&file->syscall_list_elem);
-    list_remove(&file->thread_list_elem);
+    list_remove(&file->elem);
     free(file);
-    lock_release(&lock_filesystem);
   }
+  lock_release(&lock_filesystem);
 }
 
 static int write(int fd, const void *buffer, unsigned size) {
@@ -279,9 +276,9 @@ static int write(int fd, const void *buffer, unsigned size) {
 }
 
 static struct open_file *get_file(file_descriptor fd) {
-  for (struct list_elem *e = list_begin(&thread_current()->owned_files);
-       e != list_end(&thread_current()->owned_files); e = list_next(e)) {
-    struct open_file *file = list_entry(e, struct open_file, thread_list_elem);
+  for (struct list_elem *e = list_begin(&thread_current()->files);
+       e != list_end(&thread_current()->files); e = list_next(e)) {
+    struct open_file *file = list_entry(e, struct open_file, elem);
     if (file->fd == fd) {
       return file;
     }
@@ -290,13 +287,10 @@ static struct open_file *get_file(file_descriptor fd) {
 }
 
 void close_all_files() {
-	while (!list_empty(&thread_current()->owned_files)) {
-    struct open_file *file = list_entry(
-    							list_begin(
-    								&thread_current()->owned_files), struct open_file, thread_list_elem);
+	while (!list_empty(&thread_current()->files)) {
+    struct open_file *file = list_entry(list_begin(&thread_current()->files), struct open_file, elem);
     file_close(file->file);
-    list_remove(&file->syscall_list_elem);
-  	list_remove(&file->thread_list_elem);
+  	list_remove(&file->elem);
     free(file->file_name);
     free(file);
   }

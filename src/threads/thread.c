@@ -498,7 +498,7 @@ init_thread (struct thread *t, const char *name, int priority)
   }
 
   list_push_back (&all_list, &t->allelem);
-  list_init(&(t->owned_files));
+  list_init(&(t->files));
   list_init(&(t->children_data_list));
   t->fd_counter = 2;
 }
@@ -578,8 +578,8 @@ thread_schedule_tail (struct thread *prev)
 }
 
 static void close_files(struct thread* t) {
-  for (struct list_elem* e = list_begin (&t->owned_files); e != list_end (&t->owned_files); e = list_next (e)) {
-    struct open_file *file = list_entry (e, struct open_file, thread_list_elem);
+  for (struct list_elem* e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
+    struct open_file *file = list_entry (e, struct open_file, elem);
     close (file->fd);
   }
 }

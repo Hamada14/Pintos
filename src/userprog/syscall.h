@@ -11,8 +11,7 @@ typedef int file_descriptor;
 
 struct open_file {
 	file_descriptor fd;
-	struct list_elem syscall_list_elem;
-	struct list_elem thread_list_elem;
+	struct list_elem elem;
 	struct file* file;
 	char* file_name;
 };
