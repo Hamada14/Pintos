@@ -146,17 +146,16 @@ static pid_t exec(const char *cmd_line) {
 static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
-  lock_acquire(&lock_filesystem);
   if (file == NULL || *file == '\0') {
-    lock_release(&lock_filesystem);
     exit(-1);
   }
   if (strlen(file) > 14) {
-    lock_release(&lock_filesystem);
     return false;
   }
+  lock_acquire(&lock_filesystem);
+  bool res = filesys_create(file, initial_size);
   lock_release(&lock_filesystem);
-  return filesys_create(file, initial_size);
+  return res;
 }
 
 static bool remove(const char *file) {
