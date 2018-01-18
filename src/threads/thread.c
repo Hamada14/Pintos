@@ -185,7 +185,6 @@ thread_create (const char *name, int priority,
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
   if (t == NULL) {
-    free_argv(aux);
     return TID_ERROR;
   }
 
@@ -659,10 +658,8 @@ void clear_memory() {
   for(e = list_begin (children);e != list_end (children);)
     {
       child_data = list_entry (e, struct thread_data, elem);
-      struct list_elem* next = list_next(e);
-      list_remove(e);
+      e = list_remove(e);
       free(child_data->wait_sema);
       free(child_data);
-      e = next;
     }
 }

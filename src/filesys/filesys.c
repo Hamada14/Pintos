@@ -74,7 +74,7 @@ struct file *
 filesys_open (const char *name)
 {
   struct dir *dir = dir_open_root ();
-  struct inode *inode = NULL;
+  struct inode *inode = malloc(sizeof(inode));
 
   if (dir != NULL)
     dir_lookup (dir, name, &inode);

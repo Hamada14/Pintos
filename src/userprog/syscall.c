@@ -128,8 +128,8 @@ static void halt(void) { shutdown_power_off(); }
 static void exit(int status) {
   lock_acquire(&executable_files_lock);
   remove_executable_file(thread_name());
-  close_all_files();
   lock_release(&executable_files_lock);
+  close_all_files();
   thread_current()->thread_data->exit_status = status;
   printf("%s: exit(%d)\n", thread_name(), status);
   sema_up(thread_current()->thread_data->wait_sema);
@@ -172,7 +172,7 @@ static int open(const char *file_name) {
   struct file *file = filesys_open(file_name);
   if (file == NULL) {
   	lock_release(&lock_filesystem);
-  	return -1;
+    return -1;
   }
   struct open_file *open_file = malloc(sizeof(struct open_file));
   open_file->file = file;
@@ -287,6 +287,7 @@ static struct open_file *get_file(file_descriptor fd) {
 }
 
 void close_all_files() {
+  lock_acquire(&lock_filesystem);
 	while (!list_empty(&thread_current()->files)) {
     struct open_file *file = list_entry(list_begin(&thread_current()->files), struct open_file, elem);
     file_close(file->file);
@@ -294,4 +295,5 @@ void close_all_files() {
     free(file->file_name);
     free(file);
   }
+  lock_release(&lock_filesystem);
 }

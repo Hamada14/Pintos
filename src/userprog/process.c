@@ -99,9 +99,11 @@ void free_argv(char **argv) {
    the program name is the first and args
     come in the following indices.
   */
-void init_argv(char **argv, char *file_name) {
+void init_argv(char **argv, char *file_name_) {
   int argv_ptr = 0;
   char *token;
+  char* file_name = malloc((1 + strlen(file_name_)) * sizeof(char));
+  strlcpy(file_name, file_name_, 1 + strlen(file_name_));
   char *temp = file_name;
 
   while ((token = strtok_r(temp, ARGS_DELIMITER, &temp))) {
@@ -109,6 +111,7 @@ void init_argv(char **argv, char *file_name) {
     strlcpy(argv[argv_ptr], token, strlen(token) + 1);
     argv_ptr++;
   }
+  free(file_name);
   argv[argv_ptr] = NULL;
 }
 
@@ -132,16 +135,17 @@ static void start_process(void *argv_) {
 
   success = load(argv, &if_.eip, &if_.esp);
 
-  free_argv(argv_);
   /* If load failed, quit. */
   **load_successful = true;
   if (!success) {
+    free_argv(argv_);
     **load_successful = false;
     sema_up(*load_sema);
     thread_exit();
   }
   sema_up(*load_sema);
 
+  free_argv(argv_);
   free(load_successful);
   free(load_sema);
 
