@@ -125,8 +125,8 @@ static void halt(void) { shutdown_power_off(); }
 static void exit(int status) {
   lock_acquire(&executable_files_lock);
   remove_executable_file(thread_name());
-  lock_release(&executable_files_lock);
   close_all_files();
+  lock_release(&executable_files_lock);
   thread_current()->thread_data->exit_status = status;
   printf ("%s: exit(%d)\n", thread_name(), status);
   sema_up(thread_current()->thread_data->wait_sema);
@@ -182,8 +182,8 @@ static int open(const char *file_name) {
 }
 
 static int filesize(int fd) {
-  struct open_file *file = get_file(fd);
   lock_acquire(&lock_filesystem);
+  struct open_file *file = get_file(fd);
   int sz = -1;
   if (file != NULL) {
     sz = file_length(file->file);
@@ -195,12 +195,14 @@ static int filesize(int fd) {
 static int read(int fd, void *buffer, unsigned size) {
   lock_acquire(&lock_filesystem);
   if (fd == 0) {
+  	int sz = 0;
     while (size--) {
       buffer = input_getc();
       buffer += sizeof(buffer);
+      sz++;
     }
     lock_release(&lock_filesystem);
-    return size;
+    return sz;
   } else {
     struct open_file *file = get_file_by_thread(fd);
     int sz = -1;
@@ -298,9 +300,10 @@ static struct open_file *get_file_by_thread(file_descriptor fd) {
 }
 
 static void close_all_files() {
-	for (struct list_elem *e = list_begin(&thread_current()->owned_files);
-       e != list_end(&thread_current()->owned_files); e = list_next(e)) {
-    struct open_file *file = list_entry(e, struct open_file, thread_list_elem);
+	while (!list_empty(&thread_current()->owned_files)) {
+    struct open_file *file = list_entry(
+    							list_begin(
+    								&thread_current()->owned_files), struct open_file, thread_list_elem);
     file_close(file->file);
     list_remove(&file->syscall_list_elem);
   	list_remove(&file->thread_list_elem);
