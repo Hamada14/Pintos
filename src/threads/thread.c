@@ -13,6 +13,7 @@
 #include "threads/vaddr.h"
 #include "lib/user/syscall.c"
 #include "userprog/syscall.h"
+#include "threads/malloc.h"
 
 #ifdef USERPROG
 #include "userprog/process.h"
@@ -181,14 +182,12 @@ thread_create (const char *name, int priority,
   ASSERT (function != NULL);
 
 
-  if(thread_current()->depth == 31) {
-    return TID_ERROR;
-  }
-
   /* Allocate thread. */
   t = palloc_get_page (PAL_ZERO);
-  if (t == NULL)
+  if (t == NULL) {
+    free_argv(aux);
     return TID_ERROR;
+  }
 
   /* Initialize thread. */
   init_thread (t, name, priority);
@@ -303,7 +302,7 @@ void
 thread_exit (void)
 {
   ASSERT (!intr_context ());
-
+  clear_memory();
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -627,7 +626,7 @@ allocate_tid (void)
 uint32_t thread_stack_ofs = offsetof (struct thread, stack);
 /** for system calls **/
 
-struct child_thread*
+struct thread_data*
 get_child_thread (tid_t tid)
 {
   struct list *children = &thread_current ()->children_data_list;
@@ -648,6 +647,22 @@ remove_child (tid_t tid)
   struct thread_data* child_thread_data = get_child_thread (tid);
   if (child_thread_data == NULL) return false;
   list_remove (&child_thread_data->elem);
+  free(child_thread_data->wait_sema);
   free (child_thread_data);
   return true;
+}
+
+void clear_memory() {
+  struct list *children = &thread_current ()->children_data_list;
+  struct list_elem *e;
+  struct thread_data* child_data;
+  for(e = list_begin (children);e != list_end (children);)
+    {
+      child_data = list_entry (e, struct thread_data, elem);
+      struct list_elem* next = list_next(e);
+      list_remove(e);
+      free(child_data->wait_sema);
+      free(child_data);
+      e = next;
+    }
 }

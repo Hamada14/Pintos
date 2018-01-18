@@ -161,4 +161,8 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
+
+struct thread_data* get_child_thread (tid_t tid);
+bool remove_child (tid_t tid);
+void clear_memory();
 #endif /* threads/thread.h */
