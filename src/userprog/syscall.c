@@ -169,7 +169,6 @@ static int open(const char *file_name) {
   } else if (*file_name == '\0') {
   	return -1;
   }
-  printf("%d", strlen(file_name));
   lock_acquire(&lock_filesystem);
   struct file *file = filesys_open(file_name);
   if (file == NULL) {
