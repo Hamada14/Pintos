@@ -35,6 +35,9 @@ tid_t process_execute(const char *file_name) {
   char *fn_copy;
   tid_t tid;
 
+  if(thread_current()->depth == 31) {
+    return TID_ERROR;
+  }
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   argv = palloc_get_page(0);
@@ -43,20 +46,14 @@ tid_t process_execute(const char *file_name) {
     return TID_ERROR;
 
   strlcpy(fn_copy, file_name, PGSIZE);
-  init_argv(argv, fn_copy);
+  int x = init_argv(argv, fn_copy);
 
   bool *load_successful = malloc(sizeof(bool));
   struct semaphore *load_sema = malloc(sizeof(struct semaphore));
   sema_init(load_sema, 0);
   append_to_argv(argv, load_successful, load_sema);
 
-  if(thread_current()->depth == 29) {
-    free(load_successful);
-    free(load_sema);
-    free_argv(argv);
-    palloc_free_page(fn_copy);
-    return TID_ERROR;
-  }
+
   /* Create a new thread to execute FILE_NAME. */
   tid = thread_create(argv[0], PRI_DEFAULT, start_process, argv);
   if (tid != TID_ERROR) {
@@ -66,7 +63,7 @@ tid_t process_execute(const char *file_name) {
     }
   }
 
-  free_argv(argv);
+  free_argv(argv, x);
   free(load_successful);
   free(load_sema);
   palloc_free_page(fn_copy);
@@ -88,12 +85,11 @@ void append_to_argv(char **argv, bool *load_successful,
 
 /*  Frees Argv and all it's data.
   */
-void free_argv(char **argv) {
-  return;
-  int argv_ptr = 0;
-  while (argv[argv_ptr] != NULL) {
-    free(argv[argv_ptr]);
-    argv_ptr++;
+void free_argv(char **argv, int x) {
+  x--;
+  while (x >= 0) {
+    free(argv[x]);
+    x--;
   }
   palloc_free_page(argv);
 }
@@ -102,7 +98,7 @@ void free_argv(char **argv) {
    the program name is the first and args
     come in the following indices.
   */
-void init_argv(char **argv, char *file_name_) {
+int init_argv(char **argv, char *file_name_) {
   int argv_ptr = 0;
   char *token;
   char* file_name = malloc((1 + strlen(file_name_)) * sizeof(char));
@@ -116,6 +112,7 @@ void init_argv(char **argv, char *file_name_) {
   }
   free(file_name);
   argv[argv_ptr] = NULL;
+  return argv_ptr;
 }
 
 /* A thread function that loads a user process and starts it

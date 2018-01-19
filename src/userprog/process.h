@@ -5,10 +5,8 @@
 #include "threads/synch.h"
 
 
-
-
-void init_argv(char** argv, char* file_name);
-void free_argv(char** argv);
+int init_argv(char** argv, char* file_name);
+void free_argv(char** argv, int size);
 
 void push_ptr_to_stack(size_t **esp, size_t ptr);
 

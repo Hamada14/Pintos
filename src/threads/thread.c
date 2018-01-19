@@ -94,7 +94,6 @@ void
 thread_init (void)
 {
   ASSERT (intr_get_level () == INTR_OFF);
-
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
@@ -191,7 +190,6 @@ thread_create (const char *name, int priority,
   /* Initialize thread. */
   init_thread (t, name, priority);
   t->thread_data = malloc(sizeof(struct thread_data));
-
   tid = t->tid = allocate_tid ();
   init_thread_data(t->thread_data, t);
   list_push_back (&(thread_current()->children_data_list), &(t->thread_data->elem));

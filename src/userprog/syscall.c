@@ -32,11 +32,8 @@ static void close(int fd);
 static struct open_file *get_file(file_descriptor fd);
 
 
-static struct list files_list;
-
 void syscall_init (){
   intr_register_int(0x30, 3, INTR_ON, syscall_handler, "syscall");
-  list_init(&files_list);
   lock_init(&lock_filesystem);
 }
 
@@ -126,7 +123,7 @@ static void halt(void) { shutdown_power_off(); }
 
 static void exit(int status) {
   lock_acquire(&executable_files_lock);
-  remove_executable_file(thread_name());struct lock lock_filesystem;
+  remove_executable_file(thread_name());
   lock_release(&executable_files_lock);
   close_all_files();
   clear_memory();
