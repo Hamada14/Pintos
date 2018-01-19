@@ -130,6 +130,7 @@ static void exit(int status) {
   remove_executable_file(thread_name());
   lock_release(&executable_files_lock);
   close_all_files();
+  clear_memory();
   thread_current()->thread_data->exit_status = status;
   printf("%s: exit(%d)\n", thread_name(), status);
   sema_up(thread_current()->thread_data->wait_sema);
@@ -168,6 +169,7 @@ static int open(const char *file_name) {
   } else if (*file_name == '\0') {
   	return -1;
   }
+  printf("%d", strlen(file_name));
   lock_acquire(&lock_filesystem);
   struct file *file = filesys_open(file_name);
   if (file == NULL) {
@@ -199,7 +201,8 @@ static int read(int fd, void *buffer, unsigned size) {
   lock_acquire(&lock_filesystem);
   if (fd == 0) {
   	int sz = 0;
-    while (size--) {
+    while (size != 0) {
+      size--;
       buffer = input_getc();
       buffer += sizeof(buffer);
       sz++;

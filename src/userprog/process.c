@@ -49,7 +49,7 @@ tid_t process_execute(const char *file_name) {
   sema_init(load_sema, 0);
   append_to_argv(argv, load_successful, load_sema);
 
-  if(thread_current()->depth == 30) {
+  if(thread_current()->depth == 29) {
     free(load_successful);
     free(load_sema);
     free_argv(argv);
@@ -65,6 +65,7 @@ tid_t process_execute(const char *file_name) {
     }
   }
 
+  free_argv(argv);
   free(load_successful);
   free(load_sema);
   palloc_free_page(fn_copy);
@@ -87,6 +88,7 @@ void append_to_argv(char **argv, bool *load_successful,
 /*  Frees Argv and all it's data.
   */
 void free_argv(char **argv) {
+  return;
   int argv_ptr = 0;
   while (argv[argv_ptr] != NULL) {
     free(argv[argv_ptr]);
@@ -138,14 +140,14 @@ static void start_process(void *argv_) {
   /* If load failed, quit. */
   **load_successful = true;
   if (!success) {
-    free_argv(argv_);
     **load_successful = false;
     sema_up(*load_sema);
+    free(load_successful);
+    free(load_sema);
     thread_exit();
   }
   sema_up(*load_sema);
 
-  free_argv(argv_);
   free(load_successful);
   free(load_sema);
 
@@ -306,7 +308,7 @@ bool load(char **argv, void (**eip)(void), void **esp) {
   bool success = false;
   int i;
 
-  char* file_copy = malloc((1 + strlen(argv[0]) * sizeof(char)));
+  char* file_copy = malloc((1 + strlen(argv[0])) * sizeof(char));
   strlcpy(file_copy, argv[0], strlen(argv[0]) + 1);
 
   lock_acquire(&executable_files_lock);

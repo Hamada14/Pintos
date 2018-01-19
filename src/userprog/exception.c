@@ -129,7 +129,8 @@ page_fault (struct intr_frame *f)
   bool user;         /* True: access by user, false: access by kernel. */
   void *fault_addr;  /* Fault address. */
 
-
+  printf("%s currently exiting\n", thread_name());
+  debug_backtrace_all();
   /* Obtain faulting address, the virtual address that was
      accessed to cause the fault.  It may point to code or to
      data.  It is not necessarily the address of the instruction
@@ -160,8 +161,9 @@ page_fault (struct intr_frame *f)
           write ? "writing" : "reading",
           user ? "user" : "kernel");
 
-  if(fault_addr == NULL || (size_t *)fault_addr < (size_t *)0 || fault_addr >= PHYS_BASE) {
+  if(fault_addr == NULL || (size_t *)fault_addr < (size_t *)0 ||!is_user_vaddr(fault_addr)) {
     exit(-1);
   }
+
   kill (f);
 }

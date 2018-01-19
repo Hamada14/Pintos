@@ -301,7 +301,6 @@ void
 thread_exit (void)
 {
   ASSERT (!intr_context ());
-  clear_memory();
 #ifdef USERPROG
   process_exit ();
 #endif
@@ -490,11 +489,10 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  if(strcmp(name, "main") == 0) {
-    t->depth = 0;
-  } else {
+  if(running_thread()->status == THREAD_RUNNING)
     t->depth = thread_current()->depth + 1;
-  }
+  else
+    t->depth = 0;
 
   list_push_back (&all_list, &t->allelem);
   list_init(&(t->files));
