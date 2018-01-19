@@ -92,6 +92,7 @@ struct thread_data
    int exit_status;                 /* returned by wait (). */
    struct list_elem elem;           /* used by parent to put its children. */
    struct semaphore* wait_sema;      /* used by parent to block child when wait () is called. */
+   struct thread* t;
   };
 
 struct thread
@@ -107,6 +108,7 @@ struct thread
     int depth;
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
+    bool parent_died;
 
 #ifdef USERPROG
     /* Owned by userprog/process.c. */

@@ -133,7 +133,8 @@ static void exit(int status) {
   clear_memory();
   thread_current()->thread_data->exit_status = status;
   printf("%s: exit(%d)\n", thread_name(), status);
-  sema_up(thread_current()->thread_data->wait_sema);
+  if(!thread_current()->parent_died)
+    sema_up(thread_current()->thread_data->wait_sema);
   thread_exit();
 }
 
@@ -249,6 +250,7 @@ static void close(int fd) {
   if (file != NULL) {
     file_close(file->file);
     list_remove(&file->elem);
+    free(file->file_name);
     free(file);
   }
   lock_release(&lock_filesystem);

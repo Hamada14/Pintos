@@ -471,6 +471,7 @@ void
 init_thread_data(struct thread_data* thread_data, struct thread *t) {
   thread_data->tid = t->tid;
   thread_data->wait_sema = malloc(sizeof(struct semaphore));
+  thread_data->t = t;
   sema_init(thread_data->wait_sema, 0);
 }
 
@@ -569,16 +570,8 @@ thread_schedule_tail (struct thread *prev)
   if (prev != NULL && prev->status == THREAD_DYING && prev != initial_thread)
     {
       ASSERT (prev != cur);
-      close_files(prev);
       palloc_free_page (prev);
     }
-}
-
-static void close_files(struct thread* t) {
-  for (struct list_elem* e = list_begin (&t->files); e != list_end (&t->files); e = list_next (e)) {
-    struct open_file *file = list_entry (e, struct open_file, elem);
-    close (file->fd);
-  }
 }
 
 /* Schedules a new process.  At entry, interrupts must be off and
@@ -657,6 +650,7 @@ void clear_memory() {
     {
       child_data = list_entry (e, struct thread_data, elem);
       e = list_remove(e);
+      child_data->t->parent_died = true;
       free(child_data->wait_sema);
       free(child_data);
     }
