@@ -19,6 +19,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "userprog/syscall.h"
 
 static thread_func start_process NO_RETURN;
 static bool load(char **cmdline, void (**eip)(void), void **esp);
@@ -323,9 +324,12 @@ bool load(char **argv, void (**eip)(void), void **esp) {
 
 
   /* Open executable file. */
+  lock_acquire(&lock_filesystem);
   file = filesys_open(file_copy);
+
   if (file == NULL) {
     printf("load: %s: open failed\n", argv[0]);
+    lock_release(&lock_filesystem);
     goto done;
   }
 
@@ -334,6 +338,7 @@ bool load(char **argv, void (**eip)(void), void **esp) {
       memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 ||
       ehdr.e_machine != 3 || ehdr.e_version != 1 ||
       ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024) {
+        lock_release(&lock_filesystem);
     printf("load: %s: error loading executable\n", argv[0]);
     goto done;
   }
@@ -343,12 +348,16 @@ bool load(char **argv, void (**eip)(void), void **esp) {
   for (i = 0; i < ehdr.e_phnum; i++) {
     struct Elf32_Phdr phdr;
 
-    if (file_ofs < 0 || file_ofs > file_length(file))
+    if (file_ofs < 0 || file_ofs > file_length(file)) {
+      lock_release(&lock_filesystem);
       goto done;
+    }
     file_seek(file, file_ofs);
 
-    if (file_read(file, &phdr, sizeof phdr) != sizeof phdr)
+    if (file_read(file, &phdr, sizeof phdr) != sizeof phdr) {
+      lock_release(&lock_filesystem);
       goto done;
+    }
     file_ofs += sizeof phdr;
     switch (phdr.p_type) {
     case PT_NULL:
@@ -398,6 +407,7 @@ bool load(char **argv, void (**eip)(void), void **esp) {
   *eip = (void (*)(void))ehdr.e_entry;
 
   success = true;
+  lock_release(&lock_filesystem);
 
 done:
   /* We arrive here whether the load is successful or not. */

@@ -14,7 +14,6 @@
 #include "userprog/process.h"
 #include "devices/shutdown.h"
 
-static struct lock lock_filesystem;
 
 static void syscall_handler(struct intr_frame *);
 static void halt(void);
@@ -127,7 +126,7 @@ static void halt(void) { shutdown_power_off(); }
 
 static void exit(int status) {
   lock_acquire(&executable_files_lock);
-  remove_executable_file(thread_name());
+  remove_executable_file(thread_name());struct lock lock_filesystem;
   lock_release(&executable_files_lock);
   close_all_files();
   clear_memory();

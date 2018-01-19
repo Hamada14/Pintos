@@ -1,4 +1,5 @@
 #include "lib/kernel/list.h"
+#include "threads/synch.h"
 
 #ifndef USERPROG_SYSCALL_H
 #define USERPROG_SYSCALL_H
@@ -15,6 +16,8 @@ struct open_file {
 	struct file* file;
 	char* file_name;
 };
+
+struct lock lock_filesystem;
 
 void syscall_init (void);
 void close_all_files(void);
