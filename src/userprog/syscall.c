@@ -140,7 +140,6 @@ static void exit(int status) {
   clear_memory();
   lock_acquire(&lock_filesystem);
   if(thread_current()->exec_file != NULL) {
-    file_allow_write(thread_current()->exec_file);
     file_close(thread_current()->exec_file);
   }
   lock_release(&lock_filesystem);

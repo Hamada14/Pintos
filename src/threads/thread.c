@@ -301,7 +301,6 @@ thread_exit (void)
 #ifdef USERPROG
   process_exit ();
 #endif
-
   /* Remove thread from all threads list, set our status to dying,
      and schedule another process.  That process will destroy us
      when it calls thread_schedule_tail(). */
@@ -487,10 +486,6 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
-  if(running_thread()->status == THREAD_RUNNING)
-    t->depth = thread_current()->depth + 1;
-  else
-    t->depth = 0;
 
   list_push_back (&all_list, &t->allelem);
   list_init(&(t->files));

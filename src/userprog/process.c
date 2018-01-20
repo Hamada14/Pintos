@@ -35,9 +35,6 @@ tid_t process_execute(const char *file_name) {
   char *fn_copy;
   tid_t tid;
 
-  if(thread_current()->depth == 31) {
-    return TID_ERROR;
-  }
   /* Make a copy of FILE_NAME.
      Otherwise there's a race between the caller and load(). */
   argv = palloc_get_page(0);
