@@ -44,6 +44,20 @@ static void validate_addr(size_t *adr) {
   }
 }
 
+static void validate_arr(void *adr, int sz) {
+  for(int ptr = 0; ptr < sz; ptr++) {
+    validate_addr(adr + ptr);
+  }
+}
+
+static void validate_str(const char* f) {
+  int ptr = 0;
+  do {
+    validate_addr(f + ptr);
+    ptr++;
+  } while(f[ptr] != NULL);
+}
+
 static void syscall_handler(struct intr_frame *f) {
   if (f->esp == NULL) {
     exit(-1);
@@ -122,11 +136,14 @@ static void syscall_handler(struct intr_frame *f) {
 static void halt(void) { shutdown_power_off(); }
 
 static void exit(int status) {
-  lock_acquire(&executable_files_lock);
-  remove_executable_file(thread_name());
-  lock_release(&executable_files_lock);
   close_all_files();
   clear_memory();
+  lock_acquire(&lock_filesystem);
+  if(thread_current()->exec_file != NULL) {
+    file_allow_write(thread_current()->exec_file);
+    file_close(thread_current()->exec_file);
+  }
+  lock_release(&lock_filesystem);
   thread_current()->thread_data->exit_status = status;
   printf("%s: exit(%d)\n", thread_name(), status);
   if(!thread_current()->parent_died)
@@ -135,12 +152,14 @@ static void exit(int status) {
 }
 
 static pid_t exec(const char *cmd_line) {
+  validate_str(cmd_line);
   return (pid_t)process_execute(cmd_line);
 }
 
 static int wait(pid_t pid) { return process_wait(pid); }
 
 static bool create(const char *file, unsigned initial_size) {
+  validate_str(file);
   if (file == NULL || *file == '\0') {
     exit(-1);
   }
@@ -154,6 +173,7 @@ static bool create(const char *file, unsigned initial_size) {
 }
 
 static bool remove(const char *file) {
+  validate_str(file);
   lock_acquire(&lock_filesystem);
   bool ret = filesys_remove(file);
   lock_release(&lock_filesystem);
@@ -161,6 +181,7 @@ static bool remove(const char *file) {
 }
 
 static int open(const char *file_name) {
+  validate_str(file_name);
   if (file_name == NULL) {
   	exit(-1);
   } else if (*file_name == '\0') {
@@ -194,6 +215,7 @@ static int filesize(int fd) {
 }
 
 static int read(int fd, void *buffer, unsigned size) {
+  validate_arr(buffer, size);
   lock_acquire(&lock_filesystem);
   if (fd == 0) {
   	int sz = 0;
@@ -253,6 +275,7 @@ static void close(int fd) {
 }
 
 static int write(int fd, const void *buffer, unsigned size) {
+  validate_arr(buffer, size);
   lock_acquire(&lock_filesystem);
   if (fd == 1) {
     while(size > 100) {
@@ -267,14 +290,7 @@ static int write(int fd, const void *buffer, unsigned size) {
   struct open_file *file = get_file(fd);
   int sz = -1;
   if (file != NULL) {
-    lock_acquire(&executable_files_lock);
-    if (is_executable_file(file->file_name)) {
-      lock_release(&executable_files_lock);
-      lock_release(&lock_filesystem);
-      return 0;
-    }
     sz = file_write(file->file, buffer, size);
-    lock_release(&executable_files_lock);
   }
   lock_release(&lock_filesystem);
   return sz;

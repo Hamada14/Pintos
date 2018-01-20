@@ -31,8 +31,6 @@ filesys_init (bool format)
   if (format)
     do_format ();
 
-  lock_init(&executable_files_lock);
-  list_init(&open_executable_files);
 
   free_map_open ();
 }
@@ -107,46 +105,4 @@ do_format (void)
     PANIC ("root directory creation failed");
   free_map_close ();
   printf ("done.\n");
-}
-
-
-void add_executable_file(char* file_name) {
-    struct executable_file* ef = malloc(sizeof(struct executable_file));
-    ef->file_name = malloc((1 + strlen(file_name)) * sizeof(char));
-    strlcpy(ef->file_name, file_name, 1 + strlen(file_name));
-    list_push_back(&open_executable_files, &ef->elem);
-}
-
-
-
-bool is_executable_file(char* file_name) {
-  if(list_empty(&open_executable_files)) {
-    return false;
-  }
-  struct list_elem *e;
-  struct executable_file* ef;
-  for(e = list_begin (&open_executable_files); e != list_end(&open_executable_files); e = list_next(e)) {
-    ef = list_entry(e, struct executable_file, elem);
-    if(strcmp(ef->file_name, file_name) == 0) {
-      return true;
-    }
-  }
-  return false;
-}
-
-void remove_executable_file(const char* file_name) {
-  if(list_empty(&open_executable_files)) {
-    return;
-  }
-  struct list_elem *e;
-  struct executable_file* ef;
-  for(e = list_begin (&open_executable_files); e != list_end(&open_executable_files); e = list_next(e)) {
-    ef = list_entry(e, struct executable_file, elem);
-    if(strcmp(ef->file_name, file_name) == 0) {
-      free(ef->file_name);
-      list_remove(e);
-      free(ef);
-      return;
-    }
-  }
 }

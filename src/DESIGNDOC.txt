@@ -30,72 +30,69 @@ Dahlia Chehata Mahmoud   <dahliachehata@gmail.com>
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
 
-const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter when parsing the file name with the args 
+const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter when parsing the file name with the args
                                      into an argv similar array structure where the program name is the first and args
-                                     come in the following indices.                   
+                                     come in the following indices.
 ---- ALGORITHMS ----
 
 >> A2: Briefly describe how you implemented argument parsing.  How do
 >> you arrange for the elements of argv[] to be in the right order?
 >> How do you avoid overflowing the stack page?
 
-    
-  1. void init_argv(char **argv, char *file_name_) is the function responsible  for parsing
-     it parses the file name with the args into an argv similar array structure where
-     the program name is the first and args come in the following indices.
-  2. Tokenize the file_name passed to process_execute function by spaces into 
-     arguments using strtok_r in a loop where each token is placed in char**argv
+
+  1. void init_argv(char **argv, char *file_name_) is the function responsible  for parsing.
+     it parses the file name using strtok_r into an argv similar array structure where
+     the program name is the first and arguments come in the following indices.
+  2. Tokenize the file_name passed to init_argv() function by spaces into
+     arguments using strtok_r in a loop where each token is placed in argv array
      in ordder and the argv-ptr is advanced
   3. void append_to_argv(char **argv, bool *load_successful,struct semaphore *sema)
      function appends the boolean pointer for load successful and semaphore to the argv 2d array.
-  4. Push tokenized strings into the stack from the reversed array structure **esp using
-     void add_args_to_stack(void **esp_, char **argv)  function
+		 used to detect whether the process loaded successfully or not, to avoid the parent returning before loading had
+		 taken place.
+  4. Push tokenized strings into the stack using add_args_to_stack(void **esp_, char **argv) function
   5. Push number of arguments into the stack (sz) then a dummy return value (0).
-  
- * the code does not make any checks for memory overflowing. However,it is handled
-   by making sure that the file_name passed is less than one page in memory by
-   copying it into a new string of size one page.
-   the code returns TID_ERROR in case of argv or fn_copy is NULL
 
-    argv = palloc_get_page(0);
-    fn_copy = palloc_get_page(0);
-    if (argv == NULL || fn_copy == NULL)
-    return TID_ERROR;
-    strlcpy(fn_copy, file_name, PGSIZE);
+ * We have imposed a limit of one page on the initial stack size, so currently we try placing the arguments in the Stack
+ and if at a certain moment, it's requiring a size large than the stack page then we assume that the loading has failed.
 
- * Also by allocating enough memory for esp_ptrs[sz] which is equal to the argv size
+ This approach was taken as it's hard to identify whether the arguments will fit in the stack except if we assume the
+ worst case or put an amount of computation of finding the length of each argument initially and measuring the used
+ memory used which didn't matter from trying to place in the memory and in case it fails, then we stop the process from
+ starting.
 
 ---- RATIONALE ----
 
 >> A3: Why does Pintos implement strtok_r() but not strtok()?
 
-   The strtok_r() function is a reentrant version strtok(). The saveptr argument is 
+   The strtok_r() function is a reentrant version strtok(). The saveptr argument is
    a pointer to a char * variable that is used internally by strtok_r() in order to
    maintain context between successive calls that parse the same string.
- 
+
    On the first call, both functions point to the string to be tokenized, NULL
-   is passed to subsequent calls. Apparently, some state (i.e. pointer to next 
-   token) needs to be saved between calls, strtok saves this state in a global 
+   is passed to subsequent calls. Apparently, some state (i.e. pointer to next
+   token) needs to be saved between calls, strtok saves this state in a global
    variable which causes problems because Pintos is a multi-threaded program
-   and interleaved calls made by different threads will give unexpected results 
+   and interleaved calls made by different threads will give unexpected results
    due to race conditions occurring with the global state.
 
    strtok_r on the other hand, uses a pointer you pass to it in saving what it needs,
    which is unique for every thread, so results should be consistent.
-   
+
   So in conclusion
- 
+
    The strtok() function is not thread-safe.
    The strtok_r() function is thread-safe.
 
+Also a state dependent functions aren't preferable because they tend to break the encapsulation and bind the code itself.
 
 >> A4: In Pintos, the kernel separates commands into a executable name
 >> and arguments.  In Unix-like systems, the shell does this
 >> separation.  Identify at least two advantages of the Unix approach.
 
   - In Unix, we can run multiple commands in the same line but in Pintos, that's not possible
-  - In Shell, we don't have to write the full path to the command as it will be stored in the PATH env but in Pintos, we have to 
-  - Parsing a string should be done in a user program not inside the kernel.
+  - In Shell, we don't have to write the full path to the command as it will be stored in the PATH env but in Pintos
+		String parsing should be done in a user program not inside the kernel.
   - Simplifies kernel code.
   - safer to do such task outside the kernel.
 
@@ -107,7 +104,7 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
 >> B1: Copy here the declaration of each new or changed `struct' or
 >> `struct' member, global or static variable, `typedef', or
 >> enumeration.  Identify the purpose of each in 25 words or less.
-   
+
    In threads/thread.h
    ____________________
 
@@ -139,45 +136,37 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
  ______________________
 
  3) typedef int pid_t;  /* process identifier */
- 
+
  4) #define PID_ERROR ((pid_t) -1) /* process identifier error*/
 
  5) typedef int file_descriptor;  /* file descriptor type definition (integer) */
 
  6) struct of open files with file descriptor, file pointer and file name attributes
-    
+
    struct open_file {
-	file_descriptor fd;
-	struct list_elem elem;
-	struct file* file;
-	char* file_name;
+		file_descriptor fd;
+		struct list_elem elem;
+		struct file* file;
+		char* file_name;
    };
 
- 7) struct lock lock_filesystem; /* lock used in the system calls function for synchronization purposes*/
+ 7) struct lock lock_filesystem; /* lock used in the system calls function for synchronization purposes for the file system*/
 
- In userprog/syscall.c
- ______________________
- 
- 8) static struct list files_list; /* files list used by the system calls */
-  
 
 >> B2: Describe how file descriptors are associated with open files.
 >> Are file descriptors unique within the entire OS or just within a
 >> single process?
 
-  -An open_file struct stores a file descriptor and a pointer to the open 
-   file, the file name and a list_elem elem 
-  -each thread has a list of such struct representing each file it has opened. 
-  -File descriptors are unique within the entire OS to avoid confusion if a parent and 
-   a child processes each open a file with a similar fd . If the parent passes the fd to
-   a filesystem function to be read by its child . The child will open the its own file with 
-   the same fd rather than the one passed by the parent
-   
+  -An open_file struct stores a file descriptor and a pointer to the open
+   file, the file name and a list_elem elem
+  -each thread has a list of such struct representing each file it has opened.
+  -File descriptors are unique within a single process.
+
 ---- ALGORITHMS ----
 
 >> B3: Describe your code for reading and writing user data from the
 >> kernel.
-   
+
     +-----------------------------------------------------+------------------------------------------------------+
     |                   Reading                           |                     Writing                          |
     +-----------------------------------------------------+------------------------------------------------------+
@@ -187,25 +176,37 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
     |   3. else get the file the descriptor of the file   |   3. get the file descriptor                         |
     |     3.1. if the file is NULL , let size = -1;       |   4. if the file not equal NULL                      |
     |     3.2. else read_file in buffer and get the size  |      4.1. acquire the executable FS lock             |
-    |     3.3. release lock and return the size           |        4.1.1. if the file is execuatble, release the | 
-    |                                                     |              2 locks and return 0                    |
-    |                                                     |        4.1.2. write_file in buffer, get size and     |
-    |                                                     |              release the execuatble FS lock          |
-    |                                                     |  5. release the file system lock and return the size |                         
+    |     3.3. release lock and return the size           |        4.1.2. write_file in buffer, get size and     |
+    |                                                     |               release the execuatble FS lock         |
+    |                                                     |        5. release the file system lock and return the|
+    |                                                     |              size                                    |
+    |                                                     |                                                      |
     +-----------------------------------------------------+------------------------------------------------------+
-    
+
 >> B4: Suppose a system call causes a full page (4,096 bytes) of data
 >> to be copied from user space into the kernel.  What is the least
 >> and the greatest possible number of inspections of the page table
 >> (e.g. calls to pagedir_get_page()) that might result?  What about
 >> for a system call that only copies 2 bytes of data?  Is there room
 >> for improvement in these numbers, and how much?
-   
-   
+
+	1. Full page case:
+		Min = 1;
+		Max = 2;
+		The least possible number of inspections is 1, where it's the begining of the page. where we can use pg_round_down()
+		function to obtain the start of the page and if it's the same as the first address of the start of the data then it's
+		valid.
+		However if it isn't the case then we check both the start and end of the data.
+
+	2. 2 bytes of data Case:
+		Min = 1;
+		Max = 2;
+		We'll check the start of the data which is the first byte and in case it isn't the last byte in the page then one
+		check is enough, but in the worst case we check both bytes.
 
 >> B5: Briefly describe your implementation of the "wait" system call
 >> and how it interacts with process termination.
-   
+
   1. wait system call only calls process-wait (pid) function
      which does the following:
 
@@ -213,19 +214,19 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
     2. if this is equal to NULL , return -1
     3. else it waits on the child's wait semaphore
     4. get the child exit status
-    5.remove child from list
-    6.return the exit status
-  
+    5. remove child from list
+    6. return the exit status
+
  2. exit system call does the following
-   
+
     1. acquire lock
     2. remove executable file by thread name
     3. release lock
     4. close files
-    5. clear memory
-    6. set the current thread exit status to the one passed as a function argument 
+    5. clear memory (Including child processes' states as they currently have no value.)
+    6. set the current thread exit status to the one passed as a function argument
     7. if the current thread's parent has died , wait on the thread 's wait sema
-    8. thread exits 
+    8. thread exits
 
 >> B6: Any access to user program memory at a user-specified address
 >> can fail due to a bad pointer value.  Such accesses must cause the
@@ -233,7 +234,7 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
 >> accesses, e.g. a "write" system call requires reading the system
 >> call number from the user stack, then each of the call's three
 >> arguments, then an arbitrary amount of user memory, and any of
->> these can fail at any point.  This poses a design and
+>> these can fail at any point.  This poses a design and discussions
 >> error-handling problem: how do you best avoid obscuring the primary
 >> function of code in a morass of error-handling?  Furthermore, when
 >> an error is detected, how do you ensure that all temporarily
@@ -242,28 +243,32 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
 >> managing these issues.  Give an example.
 
 - the system call handler calls the following function before executing any system call
-  static void validate_addr(size_t *adr) 
-  it validates the user address and get the corresponding page from page directory 
+  static void validate_addr(size_t *adr)
+  it validates the user address and get the corresponding page from page directory
   otherwise it exits(-1)
-  
-- first the top of stack is addressed by 
+
+- first the top of stack is addressed by
    size_t *esp_ptr = f->esp;
    and it is validated by validate_addr()
    this is the first system call number
  then arguments are read from the stack using these pointers after that their addresses are being validated
-    *(esp_ptr + 1)
+    *(esp_ptr + 1)ع الـ discussions
     (size_t*)*(esp_ptr + 2)
     *(esp_ptr + 3)
 
-- Before any obtained pointer is used, it is also validated, this is done 
-  before anything else (i.e. before allocating any resources) to avoid any 
+- Before any obtained pointer is used, it is also validated, this is done
+  before anything else (i.e. before allocating any resources) to avoid any
   resource leak.
-  - Example: 
-      - A program that puts address 0xC0000000 on the stack for example will be 
+  - Example:
+      - A program that puts address 0xC0000000 on the stack for example will be
         killed by the kernel before it can do anything.
-      - A program that tries to dereference 0xC0000000 will page_fault and will 
+      - A program that tries to dereference 0xC0000000 will page_fault and will
         also be killed by the kernel.
 
+- To avoid losing any resources we try to do the validations in a point when we don't have any, so we try to validate
+	the addresses when we don't acquire any locks and nor have yet allocated memory which will be freed in the same context
+	and in case it's invalid we call exit where we tried to put most of the code related to freeing the resources in exit()
+	where it free all the files.
 
 ---- SYNCHRONIZATION ----
 
@@ -276,8 +281,8 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
  -In process_execute()
    we ensure that if loading the new executable fails, it returns -1
    so that it can't return before the new executable has completed by
-     1) bool *load_successful = malloc(sizeof(bool)) --> the boolean specifies whether the loading was successful or not 
-     2) struct semaphore *load_sema = malloc(sizeof(struct semaphore))--> the semaphore is used to wait on the loaded 
+     1) bool *load_successful = malloc(sizeof(bool)) --> the boolean specifies whether the loading was successful or not
+     2) struct semaphore *load_sema = malloc(sizeof(struct semaphore))--> the semaphore is used to wait on the loaded
                                                                           process till finished or failed
      3) in case of failure the tid (obtained from thread_create in order to execute FILENAME ) is set to TID_ERROR and returned
 
@@ -288,9 +293,14 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
 >> terminates without waiting, before C exits?  After C exits?  Are
 >> there any special cases?
 
+	- All data regarding files are freed upon termination independent of the wait, so the remaining data is the thread_data
+		for the children.
+
   - We use thread_data to pass child process’s status (to its parent) and other information used to perform waiting process.
     A list of this struct resides inside parent for its children which will be freed when process is closed.
     struct list children_data_list;/* contains all children processes created using exec syscall (for user process thread) */
+
+	- The thread_data is freed only when the parent exits or after waiting for the child and the child exits.
 
 - These cases may happen:
 
@@ -301,29 +311,30 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
 
 2. P calls wait(C) after C exits:
     P will try to wait for its child by downing the semaphore which has already
-    been upped by the child before exiting so it continues and get exit status 
+    been upped by the child before exiting so it continues and get exit status
     of the child and remove it from its list and free this resource.
 
 3. P exits without waiting before C exits
     The children list inside P will be free. The child's struct will be freed as
-    well and there will be no need to store exit status or upping any semaphores.
+    well and there will be no need to store exit status or upping any semaphores. the thread stores a boolean to indicate
+		whether the parent is died or not to avoid using the semaphore when it has been freed.
 
 4. P exits after C exits
-   the normal case : parent get exit status of the child and remove it from
+   the normal case: parent get exit status of the child and remove it from
    its list and free this resource.
 
 ---- RATIONALE ----
 
 >> B9: Why did you choose to implement access to user memory from the
 >> kernel in the way that you did?
-   
-   -We chose the first method: to verify the validity of a user-provided pointer, then dereference it. 
-    using the functions in "userprog/pagedir.c" and in "threads/vaddr.h"because it is the simplest way
+
+   -We chose the first method: to verify the validity of a user-provided pointer, then dereference it.
+    using the functions in "userprog/pagedir.c" and in "threads/vaddr.h", because it is the simplest way
     to handle user memory access and it is a straightforward approach.
 
 >> B10: What advantages or disadvantages can you see to your design
 >> for file descriptors?
-   
+
     +-----------------------------------------------------+------------------------------------------------------+
     |                   Advantages                        |                  Disadvantages                       |
     +-----------------------------------------------------+------------------------------------------------------+
@@ -331,8 +342,8 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
     |  2. Using list is simpler than other data structures|     there must be an upper bound on the number of    |
     |     as hash tables                                  |     files open in order to not affect the performance|
     |  3. keeping a list of open files for each thread    | 2. Uniqueness of fd is kept using an integer counter |
-    |     saves memory . the list increases when opening  |    "unsigned fd_counter" and number of files         |
-    |     files and decreasing when closing it            |     In case of long running systems, the number of   |              
+    |     saves memory. the list increases when opening   |    "unsigned fd_counter" and number of files         |
+    |     files and decreasing when closing it            |     In case of long running systems, the number of   |
     |  4. when a process exits. its resources are freed   |     opened may exceed 2^32 files.                    |
     |     simply by looping on its files and closing      |                                                      |
     |     them                                            |                                                      |
@@ -341,7 +352,8 @@ const char *ARGS_DELIMITER = " " --> global variable : used as space delimiter w
 >> B11: The default tid_t to pid_t mapping is the identity mapping.
 >> If you changed it, what advantages are there to your approach?
 
-   We did not change tid_t to pid_t mapping
+   We did not change tid_t to pid_t mapping, we're using the same since a thread is the same as a process in the context
+	 of this phase.
 
 
 			   SURVEY QUESTIONS
@@ -367,4 +379,3 @@ the quarter.
 >> students, either for future quarters or the remaining projects?
 
 >> Any other comments?
-

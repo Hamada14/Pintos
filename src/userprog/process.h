@@ -20,5 +20,5 @@ int process_wait (tid_t);
 void process_exit (void);
 void process_activate (void);
 
-void add_args_to_stack(void **esp, char** argv);
+bool add_args_to_stack(void **esp, char** argv, int limit);
 #endif /* userprog/process.h */

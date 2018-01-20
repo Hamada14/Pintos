@@ -142,7 +142,7 @@ static void start_process(void *argv_) {
     sema_up(*load_sema);
     free(load_successful);
     free(load_sema);
-    thread_exit();
+    exit(-1);
   }
   sema_up(*load_sema);
 
@@ -309,33 +309,33 @@ bool load(char **argv, void (**eip)(void), void **esp) {
   char* file_copy = malloc((1 + strlen(argv[0])) * sizeof(char));
   strlcpy(file_copy, argv[0], strlen(argv[0]) + 1);
 
-  lock_acquire(&executable_files_lock);
-  add_executable_file(file_copy);
-  lock_release(&executable_files_lock);
+
 
   /* Allocate and activate page directory. */
   t->pagedir = pagedir_create();
+  lock_acquire(&lock_filesystem);
   if (t->pagedir == NULL)
     goto done;
   process_activate();
 
 
   /* Open executable file. */
-  lock_acquire(&lock_filesystem);
   file = filesys_open(file_copy);
 
   if (file == NULL) {
     printf("load: %s: open failed\n", argv[0]);
-    lock_release(&lock_filesystem);
     goto done;
   }
+
+
+  file_deny_write(file);
+  thread_current()->exec_file = file;
 
   /* Read and verify executable header. */
   if (file_read(file, &ehdr, sizeof ehdr) != sizeof ehdr ||
       memcmp(ehdr.e_ident, "\177ELF\1\1\1", 7) || ehdr.e_type != 2 ||
       ehdr.e_machine != 3 || ehdr.e_version != 1 ||
       ehdr.e_phentsize != sizeof(struct Elf32_Phdr) || ehdr.e_phnum > 1024) {
-        lock_release(&lock_filesystem);
     printf("load: %s: error loading executable\n", argv[0]);
     goto done;
   }
@@ -346,13 +346,11 @@ bool load(char **argv, void (**eip)(void), void **esp) {
     struct Elf32_Phdr phdr;
 
     if (file_ofs < 0 || file_ofs > file_length(file)) {
-      lock_release(&lock_filesystem);
       goto done;
     }
     file_seek(file, file_ofs);
 
     if (file_read(file, &phdr, sizeof phdr) != sizeof phdr) {
-      lock_release(&lock_filesystem);
       goto done;
     }
     file_ofs += sizeof phdr;
@@ -404,16 +402,11 @@ bool load(char **argv, void (**eip)(void), void **esp) {
   *eip = (void (*)(void))ehdr.e_entry;
 
   success = true;
-  lock_release(&lock_filesystem);
 
 done:
+  lock_release(&lock_filesystem);
+
   /* We arrive here whether the load is successful or not. */
-  file_close(file);
-  if(success == false) {
-    lock_acquire(&executable_files_lock);
-    remove_executable_file(file_copy);
-    lock_release(&executable_files_lock);
-  }
   free(file_copy);
   return success;
 }
@@ -531,7 +524,7 @@ static bool setup_stack(void **esp, char **argv) {
     success = install_page(((uint8_t *)PHYS_BASE) - PGSIZE, kpage, true);
     if (success) {
       *esp = PHYS_BASE;
-      add_args_to_stack(esp, argv);
+      success = success && add_args_to_stack(esp, argv, (int)(*esp - PGSIZE));
     } else
       palloc_free_page(kpage);
   }
@@ -540,7 +533,7 @@ static bool setup_stack(void **esp, char **argv) {
 
 /* Adds the required arguments to the stack.
   */
-void add_args_to_stack(void **esp_, char **argv) {
+bool add_args_to_stack(void **esp_, char **argv, int limit) {
   int sz = 0;
   size_t **esp = (size_t **)esp_;
   for (int ptr = 0; argv[ptr] != NULL; ptr++, sz++)
@@ -548,9 +541,13 @@ void add_args_to_stack(void **esp_, char **argv) {
   size_t esp_ptrs[sz];
   for (int i = sz - 1; i >= 0; i--) {
     *esp = *esp - ((strlen(argv[i]) + 1) + 3) / 4;
+    if(*esp < limit)
+      return false;
     strlcpy((char *)(*esp), argv[i], strlen(argv[i]) + 1);
     esp_ptrs[i] = (size_t)(*esp);
   }
+  if(*esp < limit + sz + 3)
+    return false;
   push_ptr_to_stack(esp, 0);
   for (int i = sz - 1; i >= 0; i--) {
     push_ptr_to_stack(esp, esp_ptrs[i]);
@@ -560,6 +557,7 @@ void add_args_to_stack(void **esp_, char **argv) {
   }
   push_ptr_to_stack(esp, sz);
   push_ptr_to_stack(esp, 0);
+  return true;
 }
 
 void push_ptr_to_stack(size_t **esp, size_t ptr) {
