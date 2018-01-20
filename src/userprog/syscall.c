@@ -255,6 +255,11 @@ static void close(int fd) {
 static int write(int fd, const void *buffer, unsigned size) {
   lock_acquire(&lock_filesystem);
   if (fd == 1) {
+    while(size > 100) {
+      putbuf(buffer, 100);
+      buffer += 100;
+      size -= 100;
+    }
     putbuf(buffer, size);
     lock_release(&lock_filesystem);
     return size;
