@@ -124,7 +124,6 @@ Also a state dependent functions aren't preferable because they tend to break th
 
   struct thread
  {
-    int depth; /* restricts the number of children threads created */
     bool parent_died; /* boolean to check if the thread parent has died*/
     unsigned fd_counter; /* file descriptor counter for each thread*/
     struct thread_data* thread_data; /* A pointer be accessed by parent if child thread is destroyed */
@@ -175,11 +174,9 @@ Also a state dependent functions aren't preferable because they tend to break th
     |      release the lock and return the size           |      release the lock and return the size            |
     |   3. else get the file the descriptor of the file   |   3. get the file descriptor                         |
     |     3.1. if the file is NULL , let size = -1;       |   4. if the file not equal NULL                      |
-    |     3.2. else read_file in buffer and get the size  |      4.1. acquire the executable FS lock             |
-    |     3.3. release lock and return the size           |        4.1.2. write_file in buffer, get size and     |
-    |                                                     |               release the execuatble FS lock         |
-    |                                                     |        5. release the file system lock and return the|
-    |                                                     |              size                                    |
+    |     3.2. else read_file in buffer and get the size  |   5. write_file in buffer, get size.                 |
+    |  	  3.3. release lock and return the size 	  |    6. release the file system lock and return        |
+    |							  |	 the size.					 |
     |                                                     |                                                      |
     +-----------------------------------------------------+------------------------------------------------------+
 
@@ -252,9 +249,9 @@ Also a state dependent functions aren't preferable because they tend to break th
    and it is validated by validate_addr()
    this is the first system call number
  then arguments are read from the stack using these pointers after that their addresses are being validated
-    *(esp_ptr + 1)ع الـ discussions
-    (size_t*)*(esp_ptr + 2)
-    *(esp_ptr + 3)
+    (size_t*) *(esp_ptr + 1)
+    (size_t*) *(esp_ptr + 2)
+    (size_t*) *(esp_ptr + 3)
 
 - Before any obtained pointer is used, it is also validated, this is done
   before anything else (i.e. before allocating any resources) to avoid any
